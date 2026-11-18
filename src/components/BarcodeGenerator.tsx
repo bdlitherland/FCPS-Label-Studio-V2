@@ -14,7 +14,7 @@ interface BarcodeGeneratorProps {
 
 export const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   value,
-  format = 'CODE39',
+  format = 'CODE128',
   height = 36,
   width = 1.4,
   fontSize = 11,
@@ -26,30 +26,26 @@ export const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
 
   useEffect(() => {
     if (svgRef.current && value) {
-      const normalizedValue =
-        format === 'CODE39'
-          ? String(value)
-              .trim()
-              .toUpperCase()
-              .replace(/[^0-9A-Z\-\.\ \$\/\+\%]/g, '')
-          : String(value);
-
-      if (!normalizedValue) return;
+      const cleanValue = String(value).trim();
+      if (!cleanValue) return;
 
       try {
-        JsBarcode(svgRef.current, normalizedValue, {
+        JsBarcode(svgRef.current, cleanValue, {
           format,
           height,
           width,
           fontSize,
           displayValue,
-          margin: 0,
-          background: 'transparent',
+          marginTop: 1,
+          marginBottom: 1,
+          marginLeft: 10,
+          marginRight: 10,
+          background: '#ffffff',
           lineColor: '#000000',
           font: 'monospace'
         });
       } catch (err) {
-        console.warn('JsBarcode render error for value:', normalizedValue, err);
+        console.warn('JsBarcode render error for value:', cleanValue, err);
       }
     }
   }, [value, format, height, width, fontSize, displayValue]);
@@ -59,7 +55,9 @@ export const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   return (
     <svg
       ref={svgRef}
-      className={`max-w-full max-h-full ${className}`}
+      shapeRendering="crispEdges"
+      preserveAspectRatio="xMidYMid meet"
+      className={`max-w-full max-h-full bg-white ${className}`}
       style={style}
     />
   );

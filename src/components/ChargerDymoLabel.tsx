@@ -120,11 +120,11 @@ export const ChargerDymoLabel: React.FC<ChargerDymoLabelProps> = ({
             )}
           </div>
 
-          <div className="h-[26px] w-[1.8in] flex justify-center items-center">
+          <div className="h-[28px] w-[1.85in] flex justify-center items-center">
             <BarcodeGenerator
               value={data.barcode || mainUsername || data.studentId || '1234567'}
-              height={24}
-              width={1.0}
+              height={26}
+              width={1.25}
               fontSize={8}
               displayValue={false}
             />
@@ -201,11 +201,11 @@ export const ChargerDymoLabel: React.FC<ChargerDymoLabelProps> = ({
           )}
         </div>
 
-        <div className="h-[24px] flex justify-center items-center pr-6">
+        <div className="h-[28px] flex justify-center items-center pr-2">
           <BarcodeGenerator
             value={data.barcode || mainUsername || data.studentId || '1234567'}
-            height={22}
-            width={0.95}
+            height={26}
+            width={1.25}
             fontSize={8}
             displayValue={false}
           />

@@ -69,15 +69,15 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
       </div>
 
       {/* Bottom User ID & Barcode */}
-      <div className="flex justify-between items-center h-[14px] pt-0.5 border-t border-gray-100">
-        <span className="text-[6.5px] font-mono font-bold text-slate-700 truncate max-w-[1.15in]" title={`User ID / Username: ${mainUsername} (Barcode: ${barcodeValue})`}>
+      <div className="flex justify-between items-center h-[21px] pt-0.5 border-t border-gray-100 gap-1">
+        <span className="text-[6.5px] font-mono font-bold text-slate-700 truncate min-w-0 flex-1" title={`User ID / Username: ${mainUsername} (Barcode: ${barcodeValue})`}>
           User: <strong className="text-blue-950">{mainUsername || '—'}</strong>
         </span>
-        <div className="h-[12px] w-[1.1in] flex justify-end">
+        <div className="h-[19px] w-[1.35in] flex justify-end items-center shrink-0">
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
-            height={12}
-            width={0.9}
+            height={18}
+            width={1.15}
             fontSize={7}
             displayValue={false}
           />

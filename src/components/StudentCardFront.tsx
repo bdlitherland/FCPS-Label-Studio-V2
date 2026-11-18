@@ -89,11 +89,11 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
         </div>
 
         {/* Barcode rendering */}
-        <div className="w-full flex justify-center items-center h-[26px] overflow-hidden">
+        <div className="w-full flex justify-center items-center h-[28px] overflow-hidden">
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
-            height={20}
-            width={1.2}
+            height={24}
+            width={1.4}
             fontSize={8}
             displayValue={false}
           />

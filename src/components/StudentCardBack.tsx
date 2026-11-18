@@ -93,11 +93,11 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
             <span className="ml-1 text-slate-600 font-medium">({teacherLastName})</span>
           )}
         </div>
-        <div className="h-[20px] w-[1.1in] flex justify-end">
+        <div className="h-[23px] w-[1.45in] flex justify-end items-center shrink-0">
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
-            height={18}
-            width={0.95}
+            height={21}
+            width={1.2}
             fontSize={7}
             displayValue={false}
           />
