@@ -4,7 +4,7 @@ import { BarcodeGenerator } from './BarcodeGenerator';
 import { GlenForestLogo } from './GlenForestLogo';
 import { StaffDymoLabel } from './StaffDymoLabel';
 import { Zap } from 'lucide-react';
-import { formatGradeDisplay } from '../utils/studentDataHelpers';
+import { formatGradeDisplay, resolveMainUsername } from '../utils/studentDataHelpers';
 
 export type DymoOrientationType = 'vertical' | 'rotate90' | 'rotate270' | 'landscape';
 export type DymoModelType = '30857' | '30256';
@@ -31,6 +31,7 @@ export const ChargerDymoLabel: React.FC<ChargerDymoLabelProps> = ({
   hideExcludedGrade = true,
 }) => {
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
+  const mainUsername = resolveMainUsername(data);
 
   // If record is for a staff member, render the Teacher / Staff Dymo Label
   if (data.grade === 'Staff' || (data as any).grade === 'Staff') {
@@ -103,20 +104,25 @@ export const ChargerDymoLabel: React.FC<ChargerDymoLabelProps> = ({
           </p>
         </div>
 
-        {/* Student ID & Barcode */}
+        {/* Student ID, User ID & Barcode */}
         <div className="border-t-2 border-slate-900 pt-1.5 flex flex-col items-center gap-1">
-          <div className="text-center">
+          <div className="text-center leading-tight">
             <span className="block text-[7.5px] font-black text-slate-500 uppercase tracking-wider">
-              Student ID
+              ID / User ID
             </span>
-            <span className="text-[12px] font-black font-mono text-slate-950">
+            <span className="text-[11px] font-black font-mono text-slate-950 block">
               {data.studentId || data.barcode || '—'}
             </span>
+            {mainUsername && mainUsername !== (data.studentId || '') && (
+              <span className="text-[9.5px] font-extrabold font-mono text-blue-950 block">
+                User: {mainUsername}
+              </span>
+            )}
           </div>
 
           <div className="h-[26px] w-[1.8in] flex justify-center items-center">
             <BarcodeGenerator
-              value={data.barcode || data.studentId || '1234567'}
+              value={data.barcode || mainUsername || data.studentId || '1234567'}
               height={24}
               width={1.0}
               fontSize={8}
@@ -179,20 +185,25 @@ export const ChargerDymoLabel: React.FC<ChargerDymoLabelProps> = ({
         </p>
       </div>
 
-      {/* Bottom Student ID & Barcode */}
+      {/* Bottom Student ID, User ID & Barcode */}
       <div className="flex justify-between items-center pt-1 border-t-2 border-slate-900 mt-0.5 px-1">
-        <div className="shrink-0">
+        <div className="shrink-0 leading-tight">
           <span className="block text-[7.5px] font-black text-slate-500 uppercase tracking-wider">
-            Student ID
+            Student ID {mainUsername && mainUsername !== (data.studentId || '') ? '/ User ID' : ''}
           </span>
-          <span className="text-[12px] font-black font-mono text-slate-950">
+          <span className="text-[11.5px] font-black font-mono text-slate-950 block">
             {data.studentId || data.barcode || '—'}
           </span>
+          {mainUsername && mainUsername !== (data.studentId || '') && (
+            <span className="text-[9.5px] font-extrabold font-mono text-blue-950 block">
+              User: {mainUsername}
+            </span>
+          )}
         </div>
 
         <div className="h-[24px] flex justify-center items-center pr-6">
           <BarcodeGenerator
-            value={data.barcode || data.studentId || '1234567'}
+            value={data.barcode || mainUsername || data.studentId || '1234567'}
             height={22}
             width={0.95}
             fontSize={8}

@@ -59,20 +59,27 @@ function getRosterFromSheet() {
       headers.forEach(function(header, colIdx) {
         obj[header] = row[colIdx];
       });
+      var sId = String(obj.studentId || obj.ID || obj['Student ID'] || obj['Lunch ID'] || '');
+      var uId = String(obj.userId || obj['User ID'] || obj.UserID || obj.user_id || obj.username || obj.Username || '');
+      var rawBarcode = String(obj.barcode || obj.Barcode || '');
+      var mainUser = (uId && uId !== sId ? uId : '') || (rawBarcode && rawBarcode !== sId ? rawBarcode : '') || uId;
       return {
         id: obj.id || String(index + 1),
         studentName: obj.studentName || obj.Name || obj['Student Name'] || '',
-        studentId: String(obj.studentId || obj.ID || obj['Student ID'] || obj['Lunch ID'] || ''),
-        lunchId: String(obj.lunchId || obj['Lunch ID'] || obj.studentId || obj.ID || obj['Student ID'] || ''),
+        studentId: sId,
+        lunchId: String(obj.lunchId || obj['Lunch ID'] || sId),
+        userId: uId || mainUser,
+        username: mainUser || sId,
         grade: String(obj.grade || obj.Grade || ''),
         staffName: obj.staffName || obj.Teacher || obj['Staff Name'] || '',
         password: String(obj.password || obj.Password || ''),
         pin: String(obj.pin || obj.PIN || obj.Pin || obj['iPad PIN'] || obj['iPad Pin'] || obj['Device PIN'] || obj.Passcode || ''),
-        barcode: String(obj.barcode || obj.studentId || obj.ID || ''),
+        barcode: String(rawBarcode || mainUser || sId),
         roomNumber: String(obj.roomNumber || obj.Room || obj['Room Number'] || ''),
         hasSleeve: String(obj.hasSleeve || 'Yes'),
         hasCharger: String(obj.hasCharger || 'Yes'),
         hasLaptop: String(obj.hasLaptop || 'Yes'),
+        hasHeadphones: String(obj.hasHeadphones || 'No'),
         attendingSummerPrograms: String(obj.attendingSummerPrograms || 'No'),
         deviceCheckedOutForSummer: String(obj.deviceCheckedOutForSummer || 'No'),
         updatedAt: obj.updatedAt || new Date().toISOString().split('T')[0],

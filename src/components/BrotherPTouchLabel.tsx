@@ -38,7 +38,7 @@ export const BrotherPTouchLabel: React.FC<BrotherPTouchLabelProps> = ({
   };
 
   const formattedDisplay = formatAssetTagDisplay(assetTagValue);
-  // Clean raw string for Code 128 barcode encoding
+  // Clean raw string for Code 39 (3 of 9) barcode encoding
   const barcodeValue = assetTagValue.replace(/\s+/g, '');
 
   const labelCore = (
@@ -58,11 +58,11 @@ export const BrotherPTouchLabel: React.FC<BrotherPTouchLabelProps> = ({
         </h1>
       </div>
 
-      {/* Center Barcode (Code 128) */}
+      {/* Center Barcode (Code 39 / 3 of 9) */}
       <div className="w-full flex justify-center items-center my-0 overflow-hidden max-h-[0.38in]">
         <BarcodeGenerator
           value={barcodeValue || '0000000000'}
-          format="CODE128"
+          format="CODE39"
           height={26}
           width={1.2}
           displayValue={false}

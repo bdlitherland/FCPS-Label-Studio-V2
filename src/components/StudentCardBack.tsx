@@ -2,7 +2,7 @@ import React from 'react';
 import { RecordData } from '../types';
 import { Key, Shield, User } from 'lucide-react';
 import { BarcodeGenerator } from './BarcodeGenerator';
-import { extractUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
+import { resolveMainUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
 
 interface StudentCardBackProps {
   data: RecordData;
@@ -15,9 +15,9 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
   schoolName = 'Glen Forest Elementary School',
   hideExcludedGrade = true
 }) => {
-  const username = data.username || extractUsername(data.email, data.studentId) || data.studentId;
+  const mainUsername = resolveMainUsername(data);
   const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || username;
+  const barcodeValue = data.barcode || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -50,20 +50,20 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
-            Lunch ID: <strong className="text-slate-950">{lunchId}</strong>
+            ID / Lunch ID: <strong className="text-slate-950">{lunchId}</strong>
           </span>
         </div>
       </div>
 
-      {/* Computer Login & Password Row */}
+      {/* User ID / Main Username & Password Row */}
       <div className="my-0.5 grid grid-cols-2 gap-1.5">
-        {/* Computer Login */}
+        {/* User ID / Main Username */}
         <div className="bg-blue-50/80 border border-blue-200 rounded p-1 flex flex-col items-center justify-center text-center">
           <span className="text-[7.5px] font-extrabold text-blue-900 uppercase tracking-tight">
-            Computer Login
+            User ID / Username
           </span>
-          <span className="text-[11px] font-black font-mono text-blue-950 truncate max-w-full select-all" title={username}>
-            {username}
+          <span className="text-[11px] font-black font-mono text-blue-950 truncate max-w-full select-all" title={mainUsername}>
+            {mainUsername || '—'}
           </span>
         </div>
 

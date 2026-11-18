@@ -1,7 +1,7 @@
 import React from 'react';
 import { RecordData } from '../types';
 import { BarcodeGenerator } from './BarcodeGenerator';
-import { extractUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
+import { resolveMainUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
 
 interface IpadLabel5160Props {
   data: RecordData;
@@ -14,9 +14,9 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
   schoolName = 'Glen Forest ES',
   hideExcludedGrade = true,
 }) => {
-  const username = String(data.username || extractUsername(data.email, data.studentId) || data.studentId || '');
+  const mainUsername = resolveMainUsername(data);
   const lunchId = String(data.lunchId || data.studentId || '—');
-  const barcodeValue = String(data.barcode || username || '');
+  const barcodeValue = String(data.barcode || mainUsername || '');
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const pinValue = String(data.pin ?? '').trim() || '—';
@@ -68,10 +68,10 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
         </div>
       </div>
 
-      {/* Bottom Barcode */}
+      {/* Bottom User ID & Barcode */}
       <div className="flex justify-between items-center h-[14px] pt-0.5 border-t border-gray-100">
-        <span className="text-[6.5px] font-mono font-bold text-slate-600 truncate max-w-[1.1in]" title={`Barcode: ${barcodeValue}`}>
-          Scan: {barcodeValue}
+        <span className="text-[6.5px] font-mono font-bold text-slate-700 truncate max-w-[1.15in]" title={`User ID / Username: ${mainUsername} (Barcode: ${barcodeValue})`}>
+          User: <strong className="text-blue-950">{mainUsername || '—'}</strong>
         </span>
         <div className="h-[12px] w-[1.1in] flex justify-end">
           <BarcodeGenerator

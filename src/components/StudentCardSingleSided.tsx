@@ -3,7 +3,7 @@ import { RecordData } from '../types';
 import { GlenForestLogo } from './GlenForestLogo';
 import { BarcodeGenerator } from './BarcodeGenerator';
 import { Key, User, Utensils } from 'lucide-react';
-import { extractUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
+import { resolveMainUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
 
 interface StudentCardSingleSidedProps {
   data: RecordData;
@@ -22,9 +22,9 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
   customLogoUrl,
   hideExcludedGrade = true
 }) => {
-  const username = data.username || extractUsername(data.email, data.studentId) || data.studentId;
+  const mainUsername = resolveMainUsername(data);
   const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || username;
+  const barcodeValue = data.barcode || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -75,27 +75,27 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
           </div>
         </div>
 
-        {/* Credentials Grid: Lunch ID & Computer Login Username & Password */}
+        {/* Credentials Grid: ID/Lunch ID & User ID/Username & Password */}
         <div className="grid grid-cols-3 gap-1 bg-slate-50/90 border border-slate-200 rounded p-1 text-[8px]">
-          {/* Lunch ID (Student ID) */}
+          {/* ID / Lunch ID */}
           <div className="bg-white border border-slate-200 rounded px-1 py-0.5 flex flex-col justify-center">
             <span className="text-[7px] font-extrabold text-slate-500 uppercase tracking-tight flex items-center gap-0.5">
               <Utensils className="w-2 h-2 text-indigo-600" />
-              Lunch ID
+              ID / Lunch ID
             </span>
             <span className="text-[9.5px] font-black font-mono text-slate-950 truncate">
               {lunchId}
             </span>
           </div>
 
-          {/* Computer Login Username */}
+          {/* User ID / Main Username */}
           <div className="bg-white border border-slate-200 rounded px-1 py-0.5 flex flex-col justify-center">
             <span className="text-[7px] font-extrabold text-slate-500 uppercase tracking-tight flex items-center gap-0.5">
               <User className="w-2 h-2 text-blue-600" />
-              Computer Login
+              User ID
             </span>
-            <span className="text-[9.5px] font-black font-mono text-blue-950 truncate" title={username}>
-              {username}
+            <span className="text-[9.5px] font-black font-mono text-blue-950 truncate" title={mainUsername}>
+              {mainUsername || '—'}
             </span>
           </div>
 
@@ -112,7 +112,7 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
         </div>
       </div>
 
-      {/* Bottom Row: Barcode scanning Username + Centered Computer Login below */}
+      {/* Bottom Row: Barcode scanning Username + Centered User ID below */}
       <div className="pt-0.5 border-t border-slate-200 flex flex-col items-center justify-end shrink-0">
         <div className="w-full flex justify-center items-center h-[24px] overflow-hidden">
           <BarcodeGenerator
@@ -124,9 +124,9 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
           />
         </div>
 
-        {/* Centered Computer Login info directly under barcode */}
+        {/* Centered User ID / Username directly under barcode */}
         <div className="w-full flex justify-center items-center text-[7.5px] text-slate-700 font-bold mt-0.5">
-          <span>Computer Login: <strong className="font-mono text-blue-950 font-black">{username}</strong></span>
+          <span>User ID / Username: <strong className="font-mono text-blue-950 font-black">{mainUsername || '—'}</strong></span>
         </div>
       </div>
     </div>

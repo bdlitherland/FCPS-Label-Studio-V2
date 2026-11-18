@@ -3,13 +3,17 @@ import { RecordData } from '../types';
 import Papa from 'papaparse';
 import {
   extractUsername,
+  resolveMainUsername,
   extractTeacherLastName,
   formatStudentFullName,
+  getStudentFirstName,
+  getStudentLastName,
   removeMiddleInitials,
   normalizeStudentRecord,
   getGradeRank,
   isExcludedGrade
 } from '../utils/studentDataHelpers';
+import { SyncRosterModal } from './SyncRosterModal';
 import {
   Search,
   Plus,
@@ -77,6 +81,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   const [filterStaff, setFilterStaff] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<RecordData | null>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   const isStaffMode = activeRoster === 'staff';
   const isDeviceMode = activeRoster === 'devices';
@@ -123,6 +128,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           (r.studentId && r.studentId.toLowerCase().includes(query)) ||
           (r.lunchId && r.lunchId.toLowerCase().includes(query)) ||
           (r.pin && r.pin.toLowerCase().includes(query)) ||
+          (r.userId && r.userId.toLowerCase().includes(query)) ||
           (r.username && r.username.toLowerCase().includes(query)) ||
           (r.samAccountName && r.samAccountName.toLowerCase().includes(query)) ||
           (r.barcode && r.barcode.toLowerCase().includes(query)) ||
@@ -236,16 +242,19 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             }
           });
 
-          // If in Student mode or contains student headers (Student Name, Student ID, Student Email 1, etc.)
+          // If in Student mode or contains student headers (Student Name, Student ID, State Testing ID, Room Name, User ID, etc.)
           const hasStudentHeaders =
             item['Student Name'] !== undefined ||
             item['Student ID'] !== undefined ||
-            item['Student Email 1'] !== undefined ||
             item['State Testing ID'] !== undefined ||
-            item.studentName !== undefined;
+            item['Room Name'] !== undefined ||
+            item['User ID'] !== undefined ||
+            item['Student Email 1'] !== undefined ||
+            item.studentName !== undefined ||
+            item.userId !== undefined;
 
           if (!isDeviceMode && (hasStudentHeaders || !isStaffMode)) {
-            // SIS Sync fields: Student Name, Student ID, State Testing ID, Last Name, First Name, Grade, Staff Name, Room Name, Student Email 1
+            // SIS Export fields: Student Name, Student ID, State Testing ID, Last Name, First Name, Grade, Staff Name, Room Name, User ID
             const emailRaw =
               item['Student Email 1'] ||
               item['Student Email'] ||
@@ -258,11 +267,26 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               item['FCPS ID'] ||
               item.studentId ||
               `${1850000 + index}`;
+            const rawUserId =
+              item['User ID'] ||
+              item.userId ||
+              item['UserID'] ||
+              item['user_id'] ||
+              item['SAMAccountName'] ||
+              item.samAccountName ||
+              '';
+            const rawUsername = item['Username'] || item.username || '';
+            const rawBarcode = item['Barcode'] || item.barcode || '';
+            // If studentId and userId do not match, userId is treated as main username
             const username =
-              item['Username'] ||
-              item.username ||
+              (rawUserId && rawUserId !== studentId ? rawUserId : '') ||
+              (rawUsername && rawUsername !== studentId ? rawUsername : '') ||
+              (rawBarcode && rawBarcode !== studentId ? rawBarcode : '') ||
+              rawUserId ||
+              rawUsername ||
               extractUsername(emailRaw, studentId);
-            const barcodeVal = username || studentId;
+            const userId = rawUserId || username;
+            const barcodeVal = rawBarcode || username || studentId;
 
             const rawName =
               item['Student Name'] ||
@@ -304,6 +328,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               lastName,
               studentId,
               lunchId: studentId,
+              userId,
               username,
               email: emailRaw || (username ? `${username}@fcpsschools.net` : ''),
               stateTestingId,
@@ -328,6 +353,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               hasSleeve: item.hasSleeve || item['Has Sleeve'] || 'Yes',
               hasCharger: item.hasCharger || item['Has Charger'] || 'Yes',
               hasLaptop: item.hasLaptop || item['Has Laptop'] || 'Yes',
+              hasHeadphones: item.hasHeadphones || item['Has Headphones'] || 'No',
               attendingSummerPrograms: item.attendingSummerPrograms || 'No',
               deviceCheckedOutForSummer: item.deviceCheckedOutForSummer || 'No',
               updatedAt: new Date().toISOString().split('T')[0],
@@ -431,23 +457,27 @@ export const DataEditor: React.FC<DataEditorProps> = ({
 
     let exportData: any[] = dataToExport;
     if (!isDeviceMode && !isStaffMode) {
-      // Export with SIS Sync headers
+      // Export using exact SIS Student Export header order + Studio login/equipment fields
       exportData = dataToExport.map(r => {
-        const uName = r.username || extractUsername(r.email, r.studentId);
+        const uName = resolveMainUsername(r) || extractUsername(r.email, r.studentId);
         return {
           'Student Name': r.studentName || r.fullName || '',
           'Student ID': r.studentId || r.lunchId || '',
           'State Testing ID': r.stateTestingId || '',
-          'Last Name': r.lastName || (r.studentName ? r.studentName.split(',')[0].trim() : ''),
-          'First Name': r.firstName || (r.studentName && r.studentName.includes(',') ? r.studentName.split(',')[1].trim() : ''),
+          'Last Name': getStudentLastName(r),
+          'First Name': getStudentFirstName(r),
           'Grade': r.grade || '03',
           'Staff Name': r.staffName || '',
           'Room Name': r.roomNumber || '',
-          'Student Email 1': r.email || (uName ? `${uName}@fcpsschools.net` : ''),
+          'User ID': r.userId || uName,
           'Username': uName,
           'Password': r.password || '',
           'PIN': r.pin || '',
-          'Barcode': r.barcode || uName || r.studentId
+          'Barcode': r.barcode || uName || r.studentId,
+          'Has Sleeve': r.hasSleeve || 'No',
+          'Has Charger': r.hasCharger || 'No',
+          'Has Laptop': r.hasLaptop || 'No',
+          'Has Headphones': r.hasHeadphones || 'No'
         };
       });
     }
@@ -553,6 +583,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
         fullName: 'New Student',
         studentId: studentNum,
         lunchId: studentNum,
+        userId: sampleUname,
         username: sampleUname,
         email: `${sampleUname}@fcpsschools.net`,
         stateTestingId: '',
@@ -565,6 +596,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
         hasSleeve: 'Yes',
         hasCharger: 'Yes',
         hasLaptop: 'Yes',
+        hasHeadphones: 'No',
         attendingSummerPrograms: 'No',
         deviceCheckedOutForSummer: 'No',
         updatedAt: new Date().toISOString().split('T')[0],
@@ -633,7 +665,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               </span>
             ) : (
               <span className="bg-indigo-100 text-indigo-900 font-bold px-2.5 py-1 rounded-md border border-indigo-200">
-                Student CSV Fields: <strong>Student Name, Student ID, Grade, Staff Name, Password, PIN</strong>
+                SIS Export Headers: <strong>Student Name, Student ID, State Testing ID, Last Name, First Name, Grade, Staff Name, Room Name, User ID</strong> (+ Password, PIN)
               </span>
             )}
           </div>
@@ -743,17 +775,30 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             <span>{isDeviceMode ? 'Add Device' : isStaffMode ? 'Add Staff' : 'Add Student'}</span>
           </button>
 
-          {/* Import CSV */}
+          {/* Import CSV / TSV */}
           <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white/80 hover:bg-white text-slate-700 border border-white/60 rounded-xl text-xs font-semibold cursor-pointer shadow-2xs transition-all">
             <Upload className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isDeviceMode ? 'Import Inventory Report CSV' : isStaffMode ? 'Import Staff CSV' : 'Import CSV'}</span>
+            <span>{isDeviceMode ? 'Import Inventory Report CSV' : isStaffMode ? 'Import Staff CSV' : 'Import CSV / TSV'}</span>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.tsv,.txt"
               onChange={handleFileUpload}
               className="hidden"
             />
           </label>
+
+          {/* Sync System Data (Passwords & PINs) */}
+          {!isStaffMode && !isDeviceMode && (
+            <button
+              type="button"
+              onClick={() => setIsSyncModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500/15 border border-amber-500/35 hover:bg-amber-500/25 text-amber-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Sync passwords, PINs, user IDs, and equipment from an external system export"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+              <span>Sync System Data</span>
+            </button>
+          )}
 
           {/* Google Drive Import */}
           <button
@@ -911,7 +956,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 </th>
                 <th className="p-3">Student Name</th>
                 <th className="p-3">ID / Lunch ID</th>
-                <th className="p-3">Computer Login (Username)</th>
+                <th className="p-3">User ID / Main Username</th>
                 <th className="p-3">Grade</th>
                 <th className="p-3">Teacher / Staff</th>
                 <th className="p-3">PIN</th>
@@ -945,10 +990,10 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                       <div className="flex items-center justify-center gap-2.5 mt-4 flex-wrap">
                         <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm hover:shadow-md transition-all">
                           <Upload className="w-3.5 h-3.5" />
-                          <span>Import CSV File</span>
+                          <span>Import CSV / TSV File</span>
                           <input
                             type="file"
-                            accept=".csv"
+                            accept=".csv,.tsv,.txt"
                             onChange={handleFileUpload}
                             className="hidden"
                           />
@@ -1120,18 +1165,23 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                           <td className="p-2">
                             <input
                               type="text"
-                              value={editFormData.username || ''}
+                              value={editFormData.userId || editFormData.username || ''}
                               onChange={(e) => {
                                 const newU = e.target.value;
+                                const prevU = editFormData.userId || editFormData.username || '';
                                 setEditFormData({
                                   ...editFormData,
+                                  userId: newU,
                                   username: newU,
-                                  barcode: newU || editFormData.barcode,
+                                  barcode:
+                                    !editFormData.barcode || editFormData.barcode === prevU || editFormData.barcode === editFormData.studentId
+                                      ? newU || editFormData.studentId || editFormData.barcode
+                                      : editFormData.barcode,
                                   email: newU ? `${newU}@fcpsschools.net` : editFormData.email
                                 });
                               }}
                               className="w-28 px-2 py-1 glass-input rounded text-xs font-mono font-bold text-indigo-950"
-                              placeholder="Username"
+                              placeholder="User ID / Username"
                             />
                           </td>
                           <td className="p-2">
@@ -1343,8 +1393,9 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 }
 
                 const studentLunchId = record.lunchId || record.studentId || '—';
-                const studentUsername = record.username || extractUsername(record.email, record.studentId) || '—';
-                const studentBarcode = record.barcode || studentUsername || record.studentId || '—';
+                const resolvedUser = resolveMainUsername(record);
+                const studentUsername = resolvedUser || '—';
+                const studentBarcode = record.barcode || resolvedUser || record.studentId || '—';
 
                 return (
                   <tr
@@ -1373,9 +1424,19 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                       </span>
                     </td>
                     <td className="p-3">
-                      <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-950 rounded font-mono font-bold text-xs border border-indigo-200">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(record)}
+                        title="Click to edit User ID / Main Username"
+                        className="inline-block px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 rounded font-mono font-bold text-xs border border-indigo-200 cursor-pointer transition-colors"
+                      >
                         {studentUsername}
-                      </span>
+                      </button>
+                      {record.userId && record.studentId && record.userId !== record.studentId && (
+                        <div className="text-[9px] text-indigo-700 font-semibold mt-0.5">
+                          Main Username (User ID ≠ ID)
+                        </div>
+                      )}
                     </td>
                     <td className="p-3 text-center">
                       <span className="inline-block px-2 py-0.5 bg-white/60 text-slate-800 rounded font-semibold border border-white/40 shadow-2xs">
@@ -1438,6 +1499,22 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* External System Sync Modal (Passwords, PINs, User IDs & Equipment) */}
+      <SyncRosterModal
+        isOpen={isSyncModalOpen && !isStaffMode && !isDeviceMode}
+        onClose={() => setIsSyncModalOpen(false)}
+        existingRecords={records}
+        onApplySync={(updatedRecords) => {
+          onUpdateRecords(updatedRecords);
+          const addedIds = updatedRecords
+            .filter((u) => !records.some((r) => r.id === u.id))
+            .map((u) => u.id);
+          if (addedIds.length > 0) {
+            onSelectAll(addedIds);
+          }
+        }}
+      />
     </div>
   );
 };

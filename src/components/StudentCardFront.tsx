@@ -2,7 +2,7 @@ import React from 'react';
 import { RecordData } from '../types';
 import { GlenForestLogo } from './GlenForestLogo';
 import { BarcodeGenerator } from './BarcodeGenerator';
-import { extractUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
+import { resolveMainUsername, extractTeacherLastName, formatStudentFullName, formatGradeDisplay } from '../utils/studentDataHelpers';
 
 interface StudentCardFrontProps {
   data: RecordData;
@@ -21,9 +21,9 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
   customLogoUrl,
   hideExcludedGrade = true
 }) => {
-  const username = data.username || extractUsername(data.email, data.studentId) || data.studentId;
+  const mainUsername = resolveMainUsername(data);
   const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || username;
+  const barcodeValue = data.barcode || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -84,7 +84,7 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
             {studentDisplayName}
           </span>
           <div className="text-[9.5px] font-bold text-gray-800 space-x-2">
-            <span>Lunch ID: <strong className="font-mono text-slate-950">{lunchId}</strong></span>
+            <span>ID / Lunch ID: <strong className="font-mono text-slate-950">{lunchId}</strong></span>
           </div>
         </div>
 
@@ -99,9 +99,9 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
           />
         </div>
 
-        {/* Centered Computer Login information directly below barcode */}
+        {/* Centered User ID / Main Username directly below barcode */}
         <div className="w-full flex justify-center items-center text-[7.5px] text-slate-700 font-bold mt-0.5">
-          <span>Computer Login: <strong className="font-mono text-blue-950 font-black">{username}</strong></span>
+          <span>User ID / Username: <strong className="font-mono text-blue-950 font-black">{mainUsername || '—'}</strong></span>
         </div>
       </div>
     </div>

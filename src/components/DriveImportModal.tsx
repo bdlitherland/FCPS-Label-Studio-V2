@@ -57,10 +57,10 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
     });
   };
 
-  const sampleHeadersCSV = `Student Name,Student ID,State Testing ID,Last Name,First Name,Grade,Staff Name,Room Name,Student Email 1,PIN
-"Marroquin Romero, Alexis I.","1859599","VA9827361","Marroquin Romero","Alexis","03","Marcot, April M","307","amarroquin@fcpsschools.net","1234"
-"Vasquez Lopez, Sofia M.","1928374","VA8817263","Vasquez Lopez","Sofia","02","Miller, Jennifer K","204","svasquez@fcpsschools.net","5678"
-"Khatri, Aarav K.","1774920","VA7728194","Khatri","Aarav","04","Martinez, David L","412","akhatri@fcpsschools.net","9012"`;
+  const sampleHeadersCSV = `Student Name,Student ID,State Testing ID,Last Name,First Name,Grade,Staff Name,Room Name,User ID,Password,PIN
+"Marroquin Romero, Alexis I.","1859599","VA9827361","Marroquin Romero","Alexis","03","Marcot, April M","307","amarroquin","GFES#2026","1234"
+"Vasquez Lopez, Sofia M.","1928374","VA8817263","Vasquez Lopez","Sofia","02","Miller, Jennifer K","204","1928374","GFES#2026","5678"
+"Khatri, Aarav K.","1774920","VA7728194","Khatri","Aarav","04","Martinez, David L","412","akhatri","GFES#2026","9012"`;
 
   const copySampleHeaders = () => {
     navigator.clipboard.writeText(sampleHeadersCSV);
@@ -172,8 +172,8 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
               </label>
               <textarea
                 rows={7}
-                placeholder={`id,studentName,studentId,grade,staffName,password,barcode,pin,roomNumber,hasSleeve,hasCharger,hasLaptop,attendingSummerPrograms,deviceCheckedOutForSummer,updatedAt,updatedBy
-1,"Marroquin Romero, Alexis I.","1859599","03","April Marcot","GFES#Alexis2026","1859599","1234","307","Yes","Yes","Yes","No","No","2026-07-21","Admin"`}
+                placeholder={`id,studentName,studentId,userId,grade,staffName,password,barcode,pin,roomNumber,hasSleeve,hasCharger,hasLaptop,hasHeadphones,attendingSummerPrograms,deviceCheckedOutForSummer,updatedAt,updatedBy
+1,"Marroquin Romero, Alexis I.","1859599","amarroquin","03","April Marcot","GFES#Alexis2026","amarroquin","1234","307","Yes","Yes","Yes","No","No","No","2026-07-21","Admin"`}
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 className="w-full p-3 glass-input rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
@@ -202,20 +202,25 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
           {activeTab === 'template' && (
             <div className="space-y-3 text-xs text-slate-700">
               <p className="font-bold text-slate-900">
-                Required Google Sheet / CSV Column Headers:
+                SIS Student Export Headers:
+              </p>
+              <div className="p-3 bg-slate-900/90 text-emerald-300 rounded-xl font-mono text-[11px] overflow-x-auto select-all shadow-inner">
+                Student Name, Student ID, State Testing ID, Last Name, First Name, Grade, Staff Name, Room Name, User ID
+              </div>
+              <p className="font-bold text-slate-900 pt-1">
+                Full Studio / System Sync Headers:
               </p>
               <div className="p-3 bg-slate-900/90 text-indigo-300 rounded-xl font-mono text-[11px] overflow-x-auto select-all shadow-inner">
-                id studentName studentId grade staffName password barcode pin roomNumber hasSleeve hasCharger hasLaptop attendingSummerPrograms deviceCheckedOutForSummer updatedAt updatedBy
+                id studentName studentId userId grade staffName password barcode pin roomNumber hasSleeve hasCharger hasLaptop hasHeadphones attendingSummerPrograms deviceCheckedOutForSummer
               </div>
               <ul className="list-disc pl-5 space-y-1 text-slate-600 text-[11.5px] font-medium">
-                <li><strong>studentName:</strong> Full name of student (e.g. "Marroquin Romero, Alexis I.")</li>
-                <li><strong>studentId:</strong> 7-digit FCPS ID / Lunch ID (e.g. "1859599")</li>
-                <li><strong>grade:</strong> Student grade level ("03", "02", "Staff")</li>
-                <li><strong>staffName:</strong> Homeroom teacher name ("April Marcot")</li>
-                <li><strong>pin:</strong> Student iPad PIN / passcode (e.g. "1234" or "123456")</li>
-                <li><strong>password:</strong> Network & iPad login password</li>
-                <li><strong>barcode:</strong> Barcode value (defaults to studentId if blank)</li>
-                <li><strong>roomNumber:</strong> Room number ("307")</li>
+                <li><strong>Student Name:</strong> Full name of student (e.g. "Marroquin Romero, Alexis I.")</li>
+                <li><strong>Student ID:</strong> 7-digit FCPS ID / Lunch ID (e.g. "1859599")</li>
+                <li><strong>User ID:</strong> Login username — if different from Student ID, User ID is used as the login username</li>
+                <li><strong>Grade / Room Name / Staff Name:</strong> Grade level ("03"), Room ("307"), and Teacher ("Marcot, April M")</li>
+                <li><strong>PIN &amp; Password:</strong> Optional iPad PIN ("1234") and network/iPad password</li>
+                <li><strong>Barcode:</strong> Barcode value (defaults to login username or Student ID if blank)</li>
+                <li><strong>Equipment Flags:</strong> hasHeadphones, hasSleeve, hasCharger, hasLaptop ("Yes" / "No")</li>
               </ul>
             </div>
           )}

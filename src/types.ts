@@ -3,7 +3,8 @@ export interface RecordData {
   studentName: string;
   studentId: string; // Lunch ID / FCPS Student ID
   lunchId?: string; // Explicit alias for Lunch ID
-  username?: string; // Student username (truncated from Student Email 1)
+  userId?: string; // Explicit User ID (becomes main username if different from studentId)
+  username?: string; // Student main username (from userId or Student Email 1)
   email?: string; // Student Email 1 (username@fcpsschools.net)
   stateTestingId?: string;
   firstName?: string;
@@ -22,6 +23,7 @@ export interface RecordData {
   hasSleeve?: boolean | string;
   hasCharger?: boolean | string;
   hasLaptop?: boolean | string;
+  hasHeadphones?: boolean | string;
   attendingSummerPrograms?: boolean | string;
   deviceCheckedOutForSummer?: boolean | string;
   // Device Asset Inventory Report Fields

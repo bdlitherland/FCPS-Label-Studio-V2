@@ -218,27 +218,65 @@ export function extractUsername(emailOrUsername?: string, fallbackId?: string): 
 }
 
 /**
+ * Resolves the student's main username:
+ * If userId (or email/username) exists and does NOT match studentId, userId is the main username.
+ */
+export function resolveMainUsername(record: Partial<RecordData>): string {
+  const studentId = record.studentId != null ? String(record.studentId).trim() : '';
+  const rawUserId = record.userId != null ? String(record.userId).trim() : '';
+  const rawUsername = record.username != null ? String(record.username).trim() : '';
+  const emailUser = extractUsername(record.email);
+
+  if (rawUserId && rawUserId !== studentId) {
+    return rawUserId;
+  }
+  if (rawUsername && rawUsername !== studentId) {
+    return rawUsername;
+  }
+  if (emailUser && emailUser !== studentId) {
+    return emailUser;
+  }
+  return rawUserId || rawUsername || emailUser || studentId || '';
+}
+
+/**
  * Normalizes and ensures student record fields:
  * - Student Name = Formatted as "First Last" without middle initials
  * - Lunch ID = studentId / FCPS ID
- * - Username = Student Email 1 truncated (strip @fcpsschools.net)
- * - Barcode = Username (for barcode scanning)
+ * - User ID / Main Username = userId (if userId !== studentId) or Student Email 1 truncated
+ * - Barcode = Main Username (for barcode scanning)
  * - Teacher Name = Just the last name (from "Last, First M" or "First Last")
  */
 export function normalizeStudentRecord(item: Partial<RecordData>, index: number = 0): RecordData {
-  // Check email and username
-  const emailRaw = item.email || (item as any)['Student Email 1'] || (item as any)['Student Email'] || (item as any)['Email'] || '';
-  const studentIdRaw = item.studentId || (item as any)['Student ID'] || (item as any)['Lunch ID'] || (item as any)['FCPS ID'] || `${1850000 + index}`;
-  
-  let username = item.username || (item as any)['Username'] || (item as any)['username'] || '';
-  if (!username && emailRaw) {
-    username = extractUsername(emailRaw);
-  } else if (!username) {
-    username = studentIdRaw;
+  // Check email, userId, and username
+  const emailRaw = String(item.email || (item as any)['Student Email 1'] || (item as any)['Student Email'] || (item as any)['Email'] || '').trim();
+  const studentIdRaw = String(item.studentId || (item as any)['Student ID'] || (item as any)['Lunch ID'] || (item as any)['FCPS ID'] || `${1850000 + index}`).trim();
+  const userIdRaw = String(
+    item.userId ||
+    (item as any)['User ID'] ||
+    (item as any)['userId'] ||
+    (item as any)['UserID'] ||
+    (item as any)['user_id'] ||
+    (item as any)['SAMAccountName'] ||
+    ''
+  ).trim();
+  const explicitUsername = String(item.username || (item as any)['Username'] || (item as any)['username'] || '').trim();
+  const emailUsername = emailRaw ? extractUsername(emailRaw) : '';
+
+  // If studentId and userId do not match, userId becomes the main username
+  let username = '';
+  if (userIdRaw && userIdRaw !== studentIdRaw) {
+    username = userIdRaw;
+  } else if (explicitUsername && explicitUsername !== studentIdRaw) {
+    username = explicitUsername;
+  } else if (emailUsername && emailUsername !== studentIdRaw) {
+    username = emailUsername;
+  } else {
+    username = userIdRaw || explicitUsername || emailUsername || studentIdRaw;
   }
 
-  // Barcode should always be the username
-  const barcode = item.barcode || username || studentIdRaw;
+  // Barcode defaults to main username
+  const barcode = String(item.barcode || (item as any)['Barcode'] || username || studentIdRaw).trim();
 
   // Student name handling in "First Last" format without middle initials
   const rawStudentName = item.studentName || (item as any)['Student Name'] || (item as any)['FullName'] || (item as any)['Full Name'] || (item as any)['Name'] || '';
@@ -246,12 +284,12 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
   const firstName = removeMiddleInitials(item.firstName || (item as any)['First Name'] || '');
   const studentName = formatStudentFullName(firstName, lastName, rawStudentName);
 
-  const grade = item.grade || (item as any)['Grade'] || '03';
+  const grade = String(item.grade || (item as any)['Grade'] || '03').trim();
   const rawStaffName = item.staffName || (item as any)['Staff Name'] || (item as any)['Teacher'] || (item as any)['Teacher Name'] || '';
   const staffName = extractTeacherLastName(rawStaffName);
-  const roomNumber = item.roomNumber || (item as any)['Room Name'] || (item as any)['Room Number'] || (item as any)['Room'] || '';
-  const stateTestingId = item.stateTestingId || (item as any)['State Testing ID'] || (item as any)['Testing ID'] || '';
-  const password = item.password || (item as any)['Password'] || 'GFES#2026';
+  const roomNumber = String(item.roomNumber || (item as any)['Room Name'] || (item as any)['Room Number'] || (item as any)['Room'] || '').trim();
+  const stateTestingId = String(item.stateTestingId || (item as any)['State Testing ID'] || (item as any)['Testing ID'] || '').trim();
+  const password = String(item.password || (item as any)['Password'] || 'GFES#2026').trim();
   const rawPin =
     item.pin ??
     (item as any)['PIN'] ??
@@ -269,6 +307,7 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     studentName,
     studentId: studentIdRaw,
     lunchId: studentIdRaw,
+    userId: userIdRaw || username,
     username,
     email: emailRaw || (username.includes('@') ? username : `${username}@fcpsschools.net`),
     stateTestingId,
@@ -284,6 +323,7 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     hasSleeve: item.hasSleeve || (item as any)['Has Sleeve'] || 'Yes',
     hasCharger: item.hasCharger || (item as any)['Has Charger'] || 'Yes',
     hasLaptop: item.hasLaptop || (item as any)['Has Laptop'] || 'Yes',
+    hasHeadphones: item.hasHeadphones || (item as any)['Has Headphones'] || 'No',
     attendingSummerPrograms: item.attendingSummerPrograms || (item as any)['Attending Summer'] || 'No',
     deviceCheckedOutForSummer: item.deviceCheckedOutForSummer || (item as any)['Checked Out Summer'] || 'No',
     updatedAt: item.updatedAt || new Date().toISOString().split('T')[0],
