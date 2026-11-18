@@ -13,7 +13,7 @@ import {
   getGradeRank,
   isExcludedGrade
 } from '../utils/studentDataHelpers';
-import { SyncRosterModal } from './SyncRosterModal';
+import { SyncRosterModal, SyncModalMode } from './SyncRosterModal';
 import {
   Search,
   Plus,
@@ -81,7 +81,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   const [filterStaff, setFilterStaff] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<RecordData | null>(null);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncModalMode, setSyncModalMode] = useState<SyncModalMode | null>(null);
 
   const isStaffMode = activeRoster === 'staff';
   const isDeviceMode = activeRoster === 'devices';
@@ -787,11 +787,24 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             />
           </label>
 
+          {/* SIS Sync (Student Roster Export) */}
+          {!isStaffMode && !isDeviceMode && (
+            <button
+              type="button"
+              onClick={() => setSyncModalMode('sis')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-500/15 border border-teal-500/35 hover:bg-teal-500/25 text-teal-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Sync against SIS student export (Student Name, Student ID, State Testing ID, Last/First Name, Grade, Staff Name, Room Name, User ID)"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-teal-700" />
+              <span>SIS Sync</span>
+            </button>
+          )}
+
           {/* Sync System Data (Passwords & PINs) */}
           {!isStaffMode && !isDeviceMode && (
             <button
               type="button"
-              onClick={() => setIsSyncModalOpen(true)}
+              onClick={() => setSyncModalMode('system')}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500/15 border border-amber-500/35 hover:bg-amber-500/25 text-amber-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
               title="Sync passwords, PINs, user IDs, and equipment from an external system export"
             >
@@ -1500,10 +1513,11 @@ export const DataEditor: React.FC<DataEditorProps> = ({
         </table>
       </div>
 
-      {/* External System Sync Modal (Passwords, PINs, User IDs & Equipment) */}
+      {/* External System & SIS Sync Modal (Dual-Key Student ID + User ID Matching) */}
       <SyncRosterModal
-        isOpen={isSyncModalOpen && !isStaffMode && !isDeviceMode}
-        onClose={() => setIsSyncModalOpen(false)}
+        isOpen={syncModalMode !== null && !isStaffMode && !isDeviceMode}
+        mode={syncModalMode || 'system'}
+        onClose={() => setSyncModalMode(null)}
         existingRecords={records}
         onApplySync={(updatedRecords) => {
           onUpdateRecords(updatedRecords);
