@@ -79,26 +79,28 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
         </div>
       </div>
 
-      {/* Footer Info: Grade, Room, Teacher last name & Barcode */}
-      <div className="flex justify-between items-center text-[8.5px] text-slate-700 font-medium pt-0.5 border-t border-slate-200">
-        <div>
-          {displayGrade && (
-            <>
-              <span>Gr: <strong className="text-slate-900">{displayGrade}</strong></span>
-              <span className="mx-1">•</span>
-            </>
-          )}
-          <span>Rm: <strong className="text-slate-900">{data.roomNumber || '—'}</strong></span>
+      {/* Footer Info: Grade, Room, Teacher last name & Full-Width Barcode */}
+      <div className="flex flex-col items-center pt-0.5 border-t border-slate-200 gap-0.5">
+        <div className="w-full flex justify-between items-center text-[8px] text-slate-700 font-medium leading-none">
+          <div>
+            {displayGrade && (
+              <>
+                <span>Gr: <strong className="text-slate-900">{displayGrade}</strong></span>
+                <span className="mx-1">•</span>
+              </>
+            )}
+            <span>Rm: <strong className="text-slate-900">{data.roomNumber || '—'}</strong></span>
+          </div>
           {teacherLastName && (
-            <span className="ml-1 text-slate-600 font-medium">({teacherLastName})</span>
+            <span className="text-slate-600 font-medium">Teacher: <strong className="text-slate-900">{teacherLastName}</strong></span>
           )}
         </div>
-        <div className="h-[23px] w-[1.45in] flex justify-end items-center shrink-0">
+        <div className="w-full h-[28px] flex justify-center items-center overflow-hidden">
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
-            height={21}
-            width={1.2}
-            fontSize={7}
+            height={24}
+            width={2}
+            maxWidthPx={304}
             displayValue={false}
           />
         </div>

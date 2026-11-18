@@ -6,6 +6,7 @@ interface BarcodeGeneratorProps {
   format?: 'CODE128' | 'CODE39';
   height?: number;
   width?: number;
+  maxWidthPx?: number;
   fontSize?: number;
   displayValue?: boolean;
   className?: string;
@@ -16,7 +17,8 @@ export const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   value,
   format = 'CODE128',
   height = 36,
-  width = 1.4,
+  width = 2,
+  maxWidthPx,
   fontSize = 11,
   displayValue = true,
   className = '',
@@ -25,39 +27,61 @@ export const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    if (svgRef.current && value) {
-      const cleanValue = String(value).trim();
-      if (!cleanValue) return;
+    const svg = svgRef.current;
+    if (!svg || !value) return;
 
-      try {
-        JsBarcode(svgRef.current, cleanValue, {
-          format,
-          height,
-          width,
-          fontSize,
-          displayValue,
-          marginTop: 1,
-          marginBottom: 1,
-          marginLeft: 10,
-          marginRight: 10,
-          background: '#ffffff',
-          lineColor: '#000000',
-          font: 'monospace'
-        });
-      } catch (err) {
-        console.warn('JsBarcode render error for value:', cleanValue, err);
+    const cleanValue = String(value).trim();
+    if (!cleanValue) return;
+
+    const renderWithWidth = (modWidth: number) => {
+      JsBarcode(svg, cleanValue, {
+        format,
+        height,
+        width: modWidth,
+        fontSize,
+        displayValue,
+        marginTop: 2,
+        marginBottom: 2,
+        marginLeft: 12,
+        marginRight: 12,
+        background: '#ffffff',
+        lineColor: '#000000',
+        font: 'monospace'
+      });
+      return {
+        w: parseFloat(svg.getAttribute('width') || '0'),
+        h: parseFloat(svg.getAttribute('height') || `${height}`)
+      };
+    };
+
+    try {
+      const startWidth = Math.max(1, Math.round(width));
+      let dims = renderWithWidth(startWidth);
+
+      if (maxWidthPx && dims.w > maxWidthPx && startWidth > 1) {
+        dims = renderWithWidth(1);
       }
+
+      if (maxWidthPx && dims.w > maxWidthPx) {
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.style.width = '100%';
+        svg.style.height = `${dims.h}px`;
+      } else {
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        svg.style.width = `${dims.w}px`;
+        svg.style.height = `${dims.h}px`;
+      }
+    } catch (err) {
+      console.warn('JsBarcode render error for value:', cleanValue, err);
     }
-  }, [value, format, height, width, fontSize, displayValue]);
+  }, [value, format, height, width, maxWidthPx, fontSize, displayValue]);
 
   if (!value) return null;
 
   return (
     <svg
       ref={svgRef}
-      shapeRendering="crispEdges"
-      preserveAspectRatio="xMidYMid meet"
-      className={`max-w-full max-h-full bg-white ${className}`}
+      className={`block bg-white shrink-0 ${className}`}
       style={style}
     />
   );

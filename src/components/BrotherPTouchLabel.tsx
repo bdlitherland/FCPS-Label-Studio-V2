@@ -64,9 +64,10 @@ export const BrotherPTouchLabel: React.FC<BrotherPTouchLabelProps> = ({
           value={barcodeValue || '0000000000'}
           format="CODE128"
           height={28}
-          width={1.3}
+          width={2}
+          maxWidthPx={Math.max(160, Math.round((parseFloat(tapeLength) || 2.0) * 96) - 12)}
           displayValue={false}
-          className="max-h-[0.36in] max-w-full object-contain"
+          className="max-h-[0.36in]"
         />
       </div>
 

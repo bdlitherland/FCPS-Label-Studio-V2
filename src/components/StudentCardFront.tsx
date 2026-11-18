@@ -51,9 +51,9 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
       </div>
 
       {/* Middle Content Row: Logo + Grade & Room + Teacher */}
-      <div className="flex items-center justify-between my-1 px-0.5 gap-2">
+      <div className="flex items-center justify-between my-0.5 px-0.5 gap-2">
         {/* School Logo Frame */}
-        <div className="w-[1.05in] h-[0.75in] bg-slate-50 border border-slate-200 rounded flex items-center justify-center p-1 shrink-0">
+        <div className="w-[1.0in] h-[0.65in] bg-slate-50 border border-slate-200 rounded flex items-center justify-center p-1 shrink-0">
           <GlenForestLogo customUrl={customLogoUrl} className="h-full w-full object-contain" />
         </div>
 
@@ -93,8 +93,8 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
             height={24}
-            width={1.4}
-            fontSize={8}
+            width={2}
+            maxWidthPx={304}
             displayValue={false}
           />
         </div>

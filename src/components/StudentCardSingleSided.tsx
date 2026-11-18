@@ -114,12 +114,12 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
 
       {/* Bottom Row: Barcode scanning Username + Centered User ID below */}
       <div className="pt-0.5 border-t border-slate-200 flex flex-col items-center justify-end shrink-0">
-        <div className="w-full flex justify-center items-center h-[26px] overflow-hidden">
+        <div className="w-full flex justify-center items-center h-[28px] overflow-hidden">
           <BarcodeGenerator
             value={barcodeValue || '1234567'}
             height={24}
-            width={1.4}
-            fontSize={8}
+            width={2}
+            maxWidthPx={304}
             displayValue={false}
           />
         </div>

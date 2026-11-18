@@ -38,50 +38,48 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
         </span>
       </div>
 
-      {/* Main Student Name & Teacher */}
-      <div className="flex justify-between items-center my-0.5 gap-1">
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-extrabold text-slate-950 leading-tight truncate" title={studentDisplayName}>
-            {studentDisplayName}
-          </p>
-          {teacherLastName && (
-            <p className="text-[7px] text-slate-600 truncate font-medium">
-              Teacher: <span className="font-bold text-slate-900">{teacherLastName}</span>
-            </p>
-          )}
+      {/* Main Student Name, Teacher & User ID */}
+      <div className="my-0.5 min-w-0">
+        <p className="text-[8.5px] font-extrabold text-slate-950 leading-tight truncate" title={studentDisplayName}>
+          {studentDisplayName}
+        </p>
+        <div className="flex justify-between items-center text-[6.5px] text-slate-600 font-medium gap-1 leading-tight">
+          <span className="truncate">
+            {teacherLastName ? (
+              <>T: <strong className="text-slate-900">{teacherLastName}</strong></>
+            ) : null}
+          </span>
+          <span className="font-mono font-bold text-slate-700 truncate shrink-0" title={`User ID / Username: ${mainUsername}`}>
+            User: <strong className="text-blue-950">{mainUsername || '—'}</strong>
+          </span>
         </div>
       </div>
 
       {/* ID/Lunch ID / PIN / Password Credential Grid */}
-      <div className="grid grid-cols-3 gap-0.5 bg-slate-50 border border-slate-200 rounded p-0.5 text-center my-0.5 text-[6.5px] font-mono leading-none">
+      <div className="grid grid-cols-3 gap-0.5 bg-slate-50 border border-slate-200 rounded p-0.5 text-center text-[6.5px] font-mono leading-none">
         <div className="px-0.5 min-w-0">
-          <span className="block text-[5.5px] font-extrabold text-slate-500 font-sans uppercase truncate">ID/Lunch ID</span>
+          <span className="block text-[5px] font-extrabold text-slate-500 font-sans uppercase truncate">ID/Lunch ID</span>
           <span className="font-extrabold text-slate-900 truncate block" title={lunchId}>{lunchId}</span>
         </div>
         <div className="border-x border-slate-200 px-0.5 min-w-0">
-          <span className="block text-[5.5px] font-extrabold text-blue-700 font-sans uppercase truncate">PIN</span>
+          <span className="block text-[5px] font-extrabold text-blue-700 font-sans uppercase truncate">PIN</span>
           <span className="font-extrabold text-blue-950 truncate block" title={pinValue}>{pinValue}</span>
         </div>
         <div className="px-0.5 min-w-0">
-          <span className="block text-[5.5px] font-extrabold text-amber-700 font-sans uppercase truncate">Password</span>
+          <span className="block text-[5px] font-extrabold text-amber-700 font-sans uppercase truncate">Password</span>
           <span className="font-extrabold text-amber-950 truncate block" title={passValue}>{passValue}</span>
         </div>
       </div>
 
-      {/* Bottom User ID & Barcode */}
-      <div className="flex justify-between items-center h-[21px] pt-0.5 border-t border-gray-100 gap-1">
-        <span className="text-[6.5px] font-mono font-bold text-slate-700 truncate min-w-0 flex-1" title={`User ID / Username: ${mainUsername} (Barcode: ${barcodeValue})`}>
-          User: <strong className="text-blue-950">{mainUsername || '—'}</strong>
-        </span>
-        <div className="h-[19px] w-[1.35in] flex justify-end items-center shrink-0">
-          <BarcodeGenerator
-            value={barcodeValue || '1234567'}
-            height={18}
-            width={1.15}
-            fontSize={7}
-            displayValue={false}
-          />
-        </div>
+      {/* Full-Width Scannable Barcode */}
+      <div className="w-full flex justify-center items-center h-[24px] pt-0.5 overflow-hidden">
+        <BarcodeGenerator
+          value={barcodeValue || '1234567'}
+          height={20}
+          width={2}
+          maxWidthPx={234}
+          displayValue={false}
+        />
       </div>
     </div>
   );
