@@ -12,6 +12,7 @@ interface StudentCardSingleSidedProps {
   schoolYear?: string;
   customLogoUrl?: string;
   hideExcludedGrade?: boolean;
+  showPassword?: boolean;
 }
 
 export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
@@ -20,7 +21,8 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
   schoolAddress = 'Falls Church, VA',
   schoolYear = '2025-2026',
   customLogoUrl,
-  hideExcludedGrade = true
+  hideExcludedGrade = true,
+  showPassword = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
   const lunchId = data.lunchId || data.studentId || '—';
@@ -75,40 +77,42 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
           </div>
         </div>
 
-        {/* Credentials Grid: ID/Lunch ID & User ID/Username & Password */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-50/90 border border-slate-200 rounded p-1 text-[8px]">
+        {/* Credentials Grid: adapts smoothly between 3 columns (with password) and 2 columns (no password) */}
+        <div className={`grid ${showPassword ? 'grid-cols-3' : 'grid-cols-2'} gap-1 bg-slate-50/90 border border-slate-200 rounded p-1 text-[8px]`}>
           {/* ID / Lunch ID */}
-          <div className="bg-white border border-slate-200 rounded px-1 py-0.5 flex flex-col justify-center">
+          <div className={`bg-white border border-slate-200 rounded ${showPassword ? 'px-1 py-0.5' : 'px-2 py-1'} flex flex-col justify-center`}>
             <span className="text-[7px] font-extrabold text-slate-500 uppercase tracking-tight flex items-center gap-0.5">
               <Utensils className="w-2 h-2 text-indigo-600" />
               ID / Lunch ID
             </span>
-            <span className="text-[9.5px] font-black font-mono text-slate-950 truncate">
+            <span className={`${showPassword ? 'text-[9.5px]' : 'text-[10.5px]'} font-black font-mono text-slate-950 truncate`}>
               {lunchId}
             </span>
           </div>
 
           {/* User ID / Main Username */}
-          <div className="bg-white border border-slate-200 rounded px-1 py-0.5 flex flex-col justify-center">
+          <div className={`bg-white border border-slate-200 rounded ${showPassword ? 'px-1 py-0.5' : 'px-2 py-1'} flex flex-col justify-center`}>
             <span className="text-[7px] font-extrabold text-slate-500 uppercase tracking-tight flex items-center gap-0.5">
               <User className="w-2 h-2 text-blue-600" />
               User ID
             </span>
-            <span className="text-[9.5px] font-black font-mono text-blue-950 truncate" title={mainUsername}>
+            <span className={`${showPassword ? 'text-[9.5px]' : 'text-[10.5px]'} font-black font-mono text-blue-950 truncate`} title={mainUsername}>
               {mainUsername || '—'}
             </span>
           </div>
 
-          {/* Password */}
-          <div className="bg-amber-50 border border-amber-300 rounded px-1 py-0.5 flex flex-col justify-center">
-            <span className="text-[7px] font-extrabold text-amber-900 uppercase tracking-tight flex items-center gap-0.5">
-              <Key className="w-2 h-2 text-amber-700" />
-              Password
-            </span>
-            <span className="text-[9px] font-black font-mono text-amber-950 truncate select-all" title={data.password || 'GFES#2026'}>
-              {data.password || 'GFES#2026'}
-            </span>
-          </div>
+          {/* Password (only shown when enabled) */}
+          {showPassword && (
+            <div className="bg-amber-50 border border-amber-300 rounded px-1 py-0.5 flex flex-col justify-center">
+              <span className="text-[7px] font-extrabold text-amber-900 uppercase tracking-tight flex items-center gap-0.5">
+                <Key className="w-2 h-2 text-amber-700" />
+                Password
+              </span>
+              <span className="text-[9.5px] font-black font-mono text-amber-950 truncate select-all" title={data.password || 'GFES#2026'}>
+                {data.password || 'GFES#2026'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

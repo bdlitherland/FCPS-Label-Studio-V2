@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { RecordData, LabelTemplateType, PrintSideOption, PrintSettings } from '../types';
+import { RecordData, LabelTemplateType, PrintSideOption, PrintSettings, ClassroomNoDeviceMode } from '../types';
 import { StudentCardFront } from './StudentCardFront';
 import { StudentCardBack } from './StudentCardBack';
 import { StudentCardSingleSided } from './StudentCardSingleSided';
@@ -8,6 +8,7 @@ import { IpadLabel5160 } from './IpadLabel5160';
 import { ChargerDymoLabel, DymoOrientationType, DymoModelType } from './ChargerDymoLabel';
 import { StaffDymoLabel } from './StaffDymoLabel';
 import { BrotherPTouchLabel } from './BrotherPTouchLabel';
+import { ClassroomAssignmentSheet, buildClassroomAssignmentPages } from './ClassroomAssignmentSheet';
 import { SiteProfileModal } from './SiteProfileModal';
 import { applyPrintPageStyles, safePrint, BrotherOrientationType } from '../utils/printHelpers';
 import {
@@ -17,6 +18,9 @@ import {
   getStudentFirstName,
   getGradeRank,
   isExcludedGrade,
+  isPreschoolOrHeadStartGrade,
+  isKindergartenGrade,
+  studentHasDevice,
   formatGradeDisplay
 } from '../utils/studentDataHelpers';
 import {
@@ -32,7 +36,8 @@ import {
   School,
   ArrowDownAZ,
   ArrowUpDown,
-  Filter
+  Filter,
+  Key
 } from 'lucide-react';
 
 interface PrintSheetModalProps {
@@ -89,21 +94,40 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
 
   const isDymoTemplate = settings.template === 'charger-dymo' || settings.template === 'staff-dymo';
   const isBrotherPTouch = settings.template === 'brother-ptouch';
+  const isClassroomAssignment = settings.template === 'classroom-assignments';
   const brotherTapeLength = settings.brotherTapeLength || '3.2in';
   const isStaffTemplate = settings.template === 'teacher-5874' || settings.template === 'teacher-5523' || settings.template === 'staff-dymo';
 
-  const isStudentTemplate = settings.template === 'student-5874' || settings.template === 'student-5523' || settings.template === 'ipad-5160';
+  const isStudentTemplate =
+    settings.template === 'student-5874' ||
+    settings.template === 'student-5523' ||
+    settings.template === 'ipad-5160' ||
+    isClassroomAssignment;
   const supportsGradeExclusion = !isStaffTemplate && !isBrotherPTouch;
   const excludeNonPrintable = settings.excludeNonPrintableGrades ?? true;
+  const showPasswords = settings.printPasswords ?? true;
+  const showPins = settings.printPins ?? true;
+  const maxCartSlots = settings.maxCartSlots ?? 30;
+  const noDeviceMode: ClassroomNoDeviceMode = settings.noDeviceMode || 'separate-section';
+  const supportsPasswordToggle =
+    settings.template === 'ipad-5160' ||
+    settings.template === 'student-5874' ||
+    settings.template === 'student-5523' ||
+    isClassroomAssignment;
+  const supportsPinToggle = settings.template === 'ipad-5160' || isClassroomAssignment;
+
+  // On Classroom Cart Assignments, Kindergarten (grade 00 / 0) MUST stay printable; only PS / HS are excluded.
+  const isGradeExcludedForTemplate = (grade?: string) =>
+    isClassroomAssignment ? isPreschoolOrHeadStartGrade(grade) : isExcludedGrade(grade);
 
   const excludedGradeCount = useMemo(() => {
-    return selectedRecords.filter(r => isExcludedGrade(r.grade)).length;
-  }, [selectedRecords]);
+    return selectedRecords.filter(r => isGradeExcludedForTemplate(r.grade)).length;
+  }, [selectedRecords, isClassroomAssignment]);
 
   // Extract unique valid grades present in the selected records
   const uniqueSelectedGrades = useMemo(() => {
     const validRecords = (supportsGradeExclusion && excludeNonPrintable)
-      ? selectedRecords.filter(r => !isExcludedGrade(r.grade))
+      ? selectedRecords.filter(r => !isGradeExcludedForTemplate(r.grade))
       : selectedRecords;
     const grades = Array.from(new Set(validRecords.map(r => r.grade).filter(Boolean) as string[]));
     return grades.sort((a, b) => {
@@ -112,7 +136,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
       if (rankA !== rankB) return rankB - rankA; // Highest grade first
       return a.localeCompare(b);
     });
-  }, [selectedRecords, supportsGradeExclusion, excludeNonPrintable]);
+  }, [selectedRecords, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
 
   // Reset grade filter if current selection doesn't contain the filtered grade
   useEffect(() => {
@@ -121,11 +145,11 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
     }
   }, [printGradeFilter, uniqueSelectedGrades]);
 
-  // Filter records by grade and optionally exclude non-printing grades (PS, HS, 00)
+  // Filter records by grade and optionally exclude non-printing grades
   const filteredSelectedRecords = useMemo(() => {
     let base = selectedRecords;
     if (supportsGradeExclusion && excludeNonPrintable) {
-      base = base.filter(r => !isExcludedGrade(r.grade));
+      base = base.filter(r => !isGradeExcludedForTemplate(r.grade));
     }
     if (printGradeFilter === 'all') return base;
     return base.filter(r => {
@@ -139,7 +163,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
         `grade ${rGrade}` === fGrade
       );
     });
-  }, [selectedRecords, printGradeFilter, supportsGradeExclusion, excludeNonPrintable]);
+  }, [selectedRecords, printGradeFilter, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
 
   // Apply sorting based on selected sortOrder
   let displayRecords = [...filteredSelectedRecords];
@@ -168,6 +192,104 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
     });
   }
 
+  // Available teachers / classrooms for Classroom Cart Assignments (scoped to current grade filter)
+  const availableClassroomTeachers = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; room: string; grade: string; count: number; rank: number }
+    >();
+    filteredSelectedRecords.forEach((r) => {
+      const rawTeacher = String(r.staffName || '').trim();
+      const teacherLast = extractTeacherLastName(rawTeacher) || rawTeacher || 'Unassigned';
+      const key = teacherLast.toLowerCase();
+      const existing = map.get(key);
+      const room = String(r.roomNumber || '').trim();
+      const grade = formatGradeDisplay(r.grade, excludeNonPrintable, true);
+      const rank = getGradeRank(r.grade);
+      if (!existing) {
+        map.set(key, {
+          key,
+          label: rawTeacher || teacherLast,
+          room,
+          grade,
+          count: 1,
+          rank,
+        });
+      } else {
+        existing.count += 1;
+        if (!existing.room && room) existing.room = room;
+        if (!existing.grade && grade) existing.grade = grade;
+        if (rank > existing.rank) existing.rank = rank;
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      if (sortOrder === 'grade-teacher-student' && a.rank !== b.rank) {
+        return b.rank - a.rank;
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }, [filteredSelectedRecords, excludeNonPrintable, sortOrder]);
+
+  // Always default Classroom Cart Assignments to a single selected teacher (not all teachers)
+  const resolvedClassroomTeacher = useMemo(() => {
+    if (!isClassroomAssignment) return '__all__';
+    const pref = String(settings.selectedTeacher || '').trim();
+    if (pref === '__all__') return '__all__';
+    if (pref) {
+      const prefLower = pref.toLowerCase();
+      const prefLast = extractTeacherLastName(pref).toLowerCase();
+      const match = availableClassroomTeachers.find(
+        (t) =>
+          t.key === prefLower ||
+          t.key === prefLast ||
+          t.label.toLowerCase() === prefLower
+      );
+      if (match) return match.key;
+    }
+    return availableClassroomTeachers[0]?.key || '';
+  }, [isClassroomAssignment, settings.selectedTeacher, availableClassroomTeachers]);
+
+  const classroomScopedRecords = useMemo(() => {
+    if (!isClassroomAssignment) return filteredSelectedRecords;
+    if (!resolvedClassroomTeacher || resolvedClassroomTeacher === '__all__') {
+      return filteredSelectedRecords;
+    }
+    return filteredSelectedRecords.filter((r) => {
+      const rawTeacher = String(r.staffName || '').trim();
+      const teacherLast = (extractTeacherLastName(rawTeacher) || rawTeacher || 'Unassigned').toLowerCase();
+      return teacherLast === resolvedClassroomTeacher;
+    });
+  }, [isClassroomAssignment, filteredSelectedRecords, resolvedClassroomTeacher]);
+
+  const selectedTeacherObj = useMemo(() => {
+    if (resolvedClassroomTeacher === '__all__') return null;
+    return availableClassroomTeachers.find((t) => t.key === resolvedClassroomTeacher) || null;
+  }, [availableClassroomTeachers, resolvedClassroomTeacher]);
+
+  // Classroom cart assignment pages (per classroom, sorted A-Z by last name, 30-slot cart + Additional Charging overflow)
+  const classroomPages = useMemo(() => {
+    if (!isClassroomAssignment) return [];
+    return buildClassroomAssignmentPages(classroomScopedRecords, {
+      maxCartSlots,
+      hideExcludedGrade: excludeNonPrintable,
+      sortClassroomsBy: sortOrder === 'teacher-student' ? 'teacher' : 'grade-teacher',
+      rowsPerPage: 31,
+      noDeviceMode,
+    });
+  }, [isClassroomAssignment, classroomScopedRecords, maxCartSlots, excludeNonPrintable, sortOrder, noDeviceMode]);
+
+  const classroomDeviceCounts = useMemo(() => {
+    const withDevice = classroomScopedRecords.filter((r) => studentHasDevice(r)).length;
+    return {
+      withDevice,
+      withoutDevice: classroomScopedRecords.length - withDevice,
+    };
+  }, [classroomScopedRecords]);
+
+  const uniqueClassroomCount = useMemo(() => {
+    return new Set(classroomPages.map(p => p.classroomKey)).size;
+  }, [classroomPages]);
+
   // Calculate pages count
   const itemsPerPage =
     settings.template === 'ipad-5160'
@@ -177,7 +299,9 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
       : settings.template === 'charger-sheet'
       ? 6
       : 10;
-  const totalPages = Math.ceil(displayRecords.length / itemsPerPage) || 1;
+  const totalPages = isClassroomAssignment
+    ? classroomPages.length || 1
+    : Math.ceil(displayRecords.length / itemsPerPage) || 1;
 
   // Split records into page chunks
   const pageChunks: RecordData[][] = [];
@@ -222,6 +346,9 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             </option>
             <option value="teacher-5523">
               Teacher / Staff Badges (Avery 5523 / 5392 — 10/sheet)
+            </option>
+            <option value="classroom-assignments">
+              Classroom Cart Assignments — Per Classroom (30 Slots + Overflow)
             </option>
             <option value="staff-dymo">
               Staff Labels — Dymo Roll Printer (1 per label)
@@ -309,7 +436,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                   }).length;
                   return (
                     <option key={g} value={g}>
-                      Grade {g} ({count} cards)
+                      {isKindergartenGrade(g) ? `Kindergarten (${g})` : `Grade ${g}`} ({count} {isClassroomAssignment ? 'students' : 'cards'})
                     </option>
                   );
                 })}
@@ -317,11 +444,15 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             </div>
           )}
 
-          {/* Exclude Non-Printable Grades Toggle (PS, HS, 00) */}
+          {/* Exclude Non-Printable Grades Toggle (PS, HS, and 00 on label/card templates) */}
           {supportsGradeExclusion && (
             <label
               className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/50 shadow-2xs cursor-pointer select-none hover:bg-white/80 transition-colors"
-              title="Exclude non-printable grades (PS, HS, 00) from printing"
+              title={
+                isClassroomAssignment
+                  ? 'Exclude Preschool & Head Start (PS, HS) while keeping Kindergarten (00)'
+                  : 'Exclude non-printable grades (PS, HS, 00) from printing'
+              }
             >
               <input
                 type="checkbox"
@@ -330,7 +461,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                 className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
               <span className="text-xs text-slate-800 font-bold">
-                Exclude PS / HS / 00
+                {isClassroomAssignment ? 'Exclude PS / HS (Keep K / 00)' : 'Exclude PS / HS / 00'}
               </span>
               {excludedGradeCount > 0 && (
                 <span
@@ -346,21 +477,135 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             </label>
           )}
 
+          {/* Password & PIN Print Visibility Toggles */}
+          {supportsPasswordToggle && (
+            <label
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-2xs cursor-pointer select-none transition-colors ${
+                showPasswords
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-950 hover:bg-amber-100/80'
+                  : 'bg-white/60 border-white/50 text-slate-700 hover:bg-white/80'
+              }`}
+              title="Enable or disable password printing; card and sheet layouts automatically adjust"
+            >
+              <input
+                type="checkbox"
+                checked={showPasswords}
+                onChange={(e) => onUpdateSettings({ printPasswords: e.target.checked })}
+                className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+              />
+              <Key className="w-3.5 h-3.5 text-amber-700" />
+              <span className="text-xs font-bold">
+                Print Passwords
+              </span>
+            </label>
+          )}
+
+          {supportsPinToggle && (
+            <label
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-2xs cursor-pointer select-none transition-colors ${
+                showPins
+                  ? 'bg-blue-50/90 border-blue-300 text-blue-950 hover:bg-blue-100/80'
+                  : 'bg-white/60 border-white/50 text-slate-700 hover:bg-white/80'
+              }`}
+              title="Enable or disable PIN printing on iPad labels and classroom cart sheets"
+            >
+              <input
+                type="checkbox"
+                checked={showPins}
+                onChange={(e) => onUpdateSettings({ printPins: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold">
+                Print PINs
+              </span>
+            </label>
+          )}
+
+          {/* Classroom Teacher Selector + Cart Max Slots + No-Device Student Handling */}
+          {isClassroomAssignment && (
+            <>
+              {availableClassroomTeachers.length > 0 && (
+                <div className="flex items-center gap-2 bg-indigo-50/90 px-3 py-1.5 rounded-xl border border-indigo-300 shadow-2xs">
+                  <span className="text-xs text-indigo-950 font-bold">Teacher:</span>
+                  <select
+                    value={resolvedClassroomTeacher}
+                    onChange={(e) => onUpdateSettings({ selectedTeacher: e.target.value })}
+                    className="bg-transparent text-indigo-950 font-black text-xs focus:outline-none cursor-pointer"
+                    title="Select which teacher's Classroom Cart Assignment sheet to print"
+                  >
+                    {availableClassroomTeachers.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                        {t.room ? ` — Rm ${t.room}` : ''}
+                        {t.grade ? ` (Gr ${t.grade})` : ''} • {t.count} students
+                      </option>
+                    ))}
+                    {availableClassroomTeachers.length > 1 && (
+                      <option value="__all__">
+                        All Teachers ({availableClassroomTeachers.length} classrooms)
+                      </option>
+                    )}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/50 shadow-2xs">
+                <span className="text-xs text-slate-700 font-bold">Cart Max Slots:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={maxCartSlots}
+                  onChange={(e) =>
+                    onUpdateSettings({ maxCartSlots: Math.max(1, parseInt(e.target.value, 10) || 30) })
+                  }
+                  className="w-14 bg-white text-indigo-900 font-black text-xs px-1.5 py-0.5 rounded border border-slate-300 focus:outline-none text-center"
+                  title="Slots above this number are labeled 'Additional Charging 1', 'Additional Charging 2', etc."
+                />
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/50 shadow-2xs">
+                <span className="text-xs text-slate-700 font-bold">Students Without Device:</span>
+                <select
+                  value={noDeviceMode}
+                  onChange={(e) =>
+                    onUpdateSettings({ noDeviceMode: e.target.value as ClassroomNoDeviceMode })
+                  }
+                  className="bg-transparent text-indigo-900 font-bold text-xs focus:outline-none cursor-pointer"
+                  title="Students marked No Device never take up cart slots 1–30"
+                >
+                  <option value="separate-section">Separate Section Below Cart Slots (No Slot)</option>
+                  <option value="inline">Inline A–Z (Marked "No Device", No Slot)</option>
+                  <option value="hide">Hide (Only List Device Holders)</option>
+                </select>
+              </div>
+            </>
+          )}
+
           {/* Universal Print Sort Mode Selector */}
           <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/50 shadow-2xs">
             <span className="text-xs text-slate-700 font-bold flex items-center gap-1">
               <ArrowDownAZ className="w-3.5 h-3.5 text-indigo-600" />
-              Sort Order:
+              {isClassroomAssignment ? 'Classroom Order:' : 'Sort Order:'}
             </span>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
               className="bg-transparent text-indigo-900 font-bold text-xs focus:outline-none cursor-pointer"
             >
-              <option value="grade-teacher-student">Highest Grade → Teacher (A-Z) → Student (A-Z)</option>
-              <option value="teacher-student">Teacher (A-Z) → Student (A-Z)</option>
-              <option value="student-last-name">Student Last Name (A-Z)</option>
-              <option value="original">Original Selection Order</option>
+              {isClassroomAssignment ? (
+                <>
+                  <option value="grade-teacher-student">Highest Grade → Teacher (Students A–Z Last Name)</option>
+                  <option value="teacher-student">Teacher A–Z (Students A–Z Last Name)</option>
+                </>
+              ) : (
+                <>
+                  <option value="grade-teacher-student">Highest Grade → Teacher (A-Z) → Student (A-Z)</option>
+                  <option value="teacher-student">Teacher (A-Z) → Student (A-Z)</option>
+                  <option value="student-last-name">Student Last Name (A-Z)</option>
+                  <option value="original">Original Selection Order</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -375,10 +620,22 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                 }
                 className="bg-transparent text-indigo-900 font-bold text-xs focus:outline-none cursor-pointer"
               >
-                <option value="single">Single-Sided (All-in-One: Lunch ID, Login, Password & Barcode)</option>
-                <option value="duplex">Duplex (2-Sided: Front Photo/Logo + Back Passwords)</option>
+                <option value="single">
+                  {showPasswords
+                    ? 'Single-Sided (All-in-One: Lunch ID, Login, Password & Barcode)'
+                    : 'Single-Sided (All-in-One: Lunch ID, Login & Barcode)'}
+                </option>
+                <option value="duplex">
+                  {showPasswords
+                    ? 'Duplex (2-Sided: Front Photo/Logo + Back Passwords)'
+                    : 'Duplex (2-Sided: Front Photo/Logo + Back Login)'}
+                </option>
                 <option value="front">Front Only (Logo, Name, Lunch ID & Barcode)</option>
-                <option value="back">Back Only (Login, Password & Barcode)</option>
+                <option value="back">
+                  {showPasswords
+                    ? 'Back Only (Login, Password & Barcode)'
+                    : 'Back Only (Login & Barcode)'}
+                </option>
               </select>
             </div>
           )}
@@ -535,7 +792,13 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-full text-xs font-extrabold shadow-md transition-all cursor-pointer hover:shadow-lg"
           >
             <Printer className="w-4 h-4" />
-            <span>Print {displayRecords.length} Labels / Cards</span>
+            <span>
+              {isClassroomAssignment
+                ? selectedTeacherObj
+                  ? `Print ${selectedTeacherObj.label} Sheet (${totalPages} Page${totalPages === 1 ? '' : 's'})`
+                  : `Print ${totalPages} Classroom Sheet${totalPages === 1 ? '' : 's'}`
+                : `Print ${displayRecords.length} Labels / Cards`}
+            </span>
           </button>
         </div>
       </div>
@@ -683,8 +946,18 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             {settings.template === 'charger-sheet' && (
               <strong>Charger Labels — Sheet Paper (6 Labels per Sheet):</strong>
             )}
+            {isClassroomAssignment && (
+              <strong>
+                {selectedTeacherObj
+                  ? `Classroom Cart Assignment — ${selectedTeacherObj.label}${selectedTeacherObj.room ? ` (Rm ${selectedTeacherObj.room})` : ''}:`
+                  : `Classroom Cart Assignments (${uniqueClassroomCount} Classroom${uniqueClassroomCount === 1 ? '' : 's'}, ${maxCartSlots}-Slot Cart + Additional Charging):`}
+              </strong>
+            )}
             {' '}
-            {displayRecords.length} printable{displayRecords.length !== selectedRecords.length ? ` (${selectedRecords.length} selected)` : ''} • Total Pages: {totalPages * ((settings.template === 'student-5874' || settings.template === 'student-5523') && settings.printSide === 'duplex' ? 2 : 1)}
+            {isClassroomAssignment
+              ? `${classroomDeviceCounts.withDevice} with device • ${classroomDeviceCounts.withoutDevice} no device • `
+              : `${displayRecords.length} printable${displayRecords.length !== selectedRecords.length ? ` (${selectedRecords.length} selected)` : ''} • `}
+            Total Pages: {totalPages * ((settings.template === 'student-5874' || settings.template === 'student-5523') && settings.printSide === 'duplex' ? 2 : 1)}
           </span>
         </div>
         <span className="text-[11px] text-indigo-700 font-semibold">
@@ -728,6 +1001,36 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
               )}
             </div>
           </div>
+        ) : isClassroomAssignment ? (
+          classroomPages.map((cPage, pageIndex) => (
+            <div
+              key={`class_page_${cPage.classroomKey}_${cPage.pageInClassroom}`}
+              className={`printable-sheet shrink-0 bg-white shadow-lg print:shadow-none print:m-0 relative box-border transition-all flex items-start justify-center ${
+                settings.showGridLines ? 'border border-dashed border-blue-300 print:border-none' : ''
+              }`}
+              style={{
+                width: '8.5in',
+                height: '11.0in',
+                maxHeight: '11.0in',
+                overflow: 'hidden',
+                padding: '0.4in 0.5in',
+                transform: `translate(${settings.offsetXMm}mm, ${settings.offsetYMm}mm)`,
+                boxSizing: 'border-box',
+              }}
+            >
+              <div className="absolute top-2 right-3 text-[10px] font-bold bg-slate-800 text-slate-200 px-2 py-0.5 rounded print:hidden shadow-xs z-10">
+                Sheet {pageIndex + 1} of {classroomPages.length} ({cPage.teacherName})
+              </div>
+              <ClassroomAssignmentSheet
+                page={cPage}
+                schoolName={settings.schoolName}
+                schoolYear={settings.schoolYear}
+                customLogoUrl={settings.customLogoUrl}
+                showPassword={showPasswords}
+                showPin={showPins}
+              />
+            </div>
+          ))
         ) : (
           pageChunks.map((chunk, pageIndex) => (
             <React.Fragment key={`page_${pageIndex}`}>
@@ -819,6 +1122,8 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                           data={record}
                           schoolName={settings.schoolName}
                           hideExcludedGrade={excludeNonPrintable}
+                          showPassword={showPasswords}
+                          showPin={showPins}
                         />
                       ))}
                     </div>
@@ -849,6 +1154,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                             schoolYear={settings.schoolYear}
                             customLogoUrl={settings.customLogoUrl}
                             hideExcludedGrade={excludeNonPrintable}
+                            showPassword={showPasswords}
                           />
                         ) : (
                           <StudentCardFront
@@ -984,7 +1290,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                   }}
                 >
                   <div className="absolute top-2 right-3 text-[10px] font-bold bg-amber-800 text-amber-100 px-2 py-0.5 rounded print:hidden shadow-xs">
-                    Page {pageIndex + 1} (Back Side - Passwords)
+                    Page {pageIndex + 1} (Back Side - {showPasswords ? 'Passwords' : 'Login'})
                   </div>
 
                   {/* Back side columns are horizontally swapped for long-edge duplex alignment */}
@@ -1013,6 +1319,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                               data={frontRight}
                               schoolName={settings.schoolName}
                               hideExcludedGrade={excludeNonPrintable}
+                              showPassword={showPasswords}
                             />
                           ) : (
                             <div className="w-[3.5in] h-[2.0in]" />
@@ -1024,6 +1331,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                               data={frontLeft}
                               schoolName={settings.schoolName}
                               hideExcludedGrade={excludeNonPrintable}
+                              showPassword={showPasswords}
                             />
                           ) : (
                             <div className="w-[3.5in] h-[2.0in]" />

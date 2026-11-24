@@ -111,6 +111,36 @@ export function getStudentFirstName(record: Partial<RecordData>): string {
 }
 
 /**
+ * Checks if a grade represents Kindergarten (00, 0, K, KG, Kindergarten).
+ */
+export function isKindergartenGrade(gradeStr?: string): boolean {
+  if (gradeStr === undefined || gradeStr === null || gradeStr === '') return false;
+  const cleaned = gradeStr.toString().trim().toUpperCase();
+  return (
+    cleaned === '00' ||
+    cleaned === '0' ||
+    cleaned === 'K' ||
+    cleaned === 'KG' ||
+    cleaned === 'KINDERGARTEN'
+  );
+}
+
+/**
+ * Checks if a grade is Preschool or Head Start (PS, HS, Preschool, Head Start).
+ */
+export function isPreschoolOrHeadStartGrade(gradeStr?: string): boolean {
+  if (gradeStr === undefined || gradeStr === null || gradeStr === '') return false;
+  const cleaned = gradeStr.toString().trim().toUpperCase();
+  return (
+    cleaned === 'PS' ||
+    cleaned === 'HS' ||
+    cleaned === 'PRESCHOOL' ||
+    cleaned === 'HEAD START' ||
+    cleaned === 'HEADSTART'
+  );
+}
+
+/**
  * Checks if a grade is an excluded/non-printing grade (PS, HS, 00, 0, Preschool, Head Start).
  */
 export function isExcludedGrade(gradeStr?: string): boolean {
@@ -128,12 +158,49 @@ export function isExcludedGrade(gradeStr?: string): boolean {
 }
 
 /**
+ * Determines whether a student currently has an assigned laptop / computer device.
+ * Respects boolean or string values from CSV / System Sync (e.g. "No", "false", "0", "None").
+ */
+export function studentHasDevice(record: Partial<RecordData>): boolean {
+  const val = record.hasLaptop;
+  if (val === false) return false;
+  if (val === true) return true;
+  if (val === undefined || val === null) return true;
+  const cleaned = String(val).trim().toLowerCase();
+  if (!cleaned) return true;
+  if (
+    cleaned === 'no' ||
+    cleaned === 'n' ||
+    cleaned === 'false' ||
+    cleaned === '0' ||
+    cleaned === 'none' ||
+    cleaned === 'unassigned' ||
+    cleaned === 'na' ||
+    cleaned === 'n/a' ||
+    cleaned === 'no device' ||
+    cleaned === 'no laptop'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Formats grade for display on badges/cards:
  * - Strips leading zero (e.g. "05" -> "5", "03" -> "3", "01" -> "1")
- * - If grade is PS, HS, 00, or invalid, returns empty string to prevent printing PS/HS/00.
+ * - When includeKindergarten is true, renders "00" / "0" / "K" / "KG" as "K (00)" or "K".
+ * - If grade is PS, HS, 00 (when includeKindergarten is false), returns empty string.
  */
-export function formatGradeDisplay(gradeStr?: string, hideExcluded: boolean = true): string {
+export function formatGradeDisplay(
+  gradeStr?: string,
+  hideExcluded: boolean = true,
+  includeKindergarten: boolean = false
+): string {
   if (!gradeStr) return '';
+  if (includeKindergarten && isKindergartenGrade(gradeStr)) {
+    const cleaned = gradeStr.toString().trim().toUpperCase();
+    return cleaned === '00' || cleaned === '0' ? 'K (00)' : 'K';
+  }
   if (hideExcluded && isExcludedGrade(gradeStr)) {
     return '';
   }
@@ -146,15 +213,15 @@ export function formatGradeDisplay(gradeStr?: string, hideExcluded: boolean = tr
 
 /**
  * Computes numerical rank for grades for descending sorting (highest grade first).
- * Grade 12 -> 12, Grade 5 -> 5, Grade 1 -> 1, K -> 0, PK -> -1, Staff -> -100
+ * Grade 12 -> 12, Grade 5 -> 5, Grade 1 -> 1, K/00 -> 0, PK -> -1, Staff -> -100, PS/HS -> -500
  */
 export function getGradeRank(gradeStr?: string): number {
   if (!gradeStr) return -999;
   const cleaned = gradeStr.toString().trim().toLowerCase();
   if (cleaned.includes('staff')) return -100;
-  if (cleaned === 'ps' || cleaned === 'hs' || cleaned === '00' || cleaned === '0') return -500;
+  if (cleaned === 'ps' || cleaned === 'hs' || cleaned === 'preschool' || cleaned === 'head start' || cleaned === 'headstart') return -500;
   if (cleaned.includes('pre') || cleaned.includes('pk')) return -1;
-  if (cleaned === 'k' || cleaned === 'kg' || cleaned.includes('kindergarten')) {
+  if (cleaned === 'k' || cleaned === 'kg' || cleaned === '00' || cleaned === '0' || cleaned.includes('kindergarten')) {
     return 0;
   }
   const match = cleaned.match(/\d+/);

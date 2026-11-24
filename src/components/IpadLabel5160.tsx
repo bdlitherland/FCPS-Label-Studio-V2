@@ -7,12 +7,16 @@ interface IpadLabel5160Props {
   data: RecordData;
   schoolName?: string;
   hideExcludedGrade?: boolean;
+  showPassword?: boolean;
+  showPin?: boolean;
 }
 
 export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
   data,
   schoolName = 'Glen Forest ES',
   hideExcludedGrade = true,
+  showPassword = true,
+  showPin = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
   const lunchId = String(data.lunchId || data.studentId || '—');
@@ -22,6 +26,9 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
   const pinValue = String(data.pin ?? '').trim() || '—';
   const passValue = String(data.password || 'GFES#2026');
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
+
+  const credentialCols =
+    showPin && showPassword ? 'grid-cols-3' : showPin || showPassword ? 'grid-cols-2' : 'grid-cols-1';
 
   return (
     <div
@@ -55,20 +62,28 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
         </div>
       </div>
 
-      {/* ID/Lunch ID / PIN / Password Credential Grid */}
-      <div className="grid grid-cols-3 gap-0.5 bg-slate-50 border border-slate-200 rounded p-0.5 text-center text-[6.5px] font-mono leading-none">
+      {/* ID/Lunch ID / PIN / Password Credential Grid (adapts cleanly when PIN or Password is hidden) */}
+      <div
+        className={`grid ${credentialCols} gap-0.5 bg-slate-50 border border-slate-200 rounded p-0.5 text-center ${
+          showPin && showPassword ? 'text-[6.5px]' : 'text-[7px]'
+        } font-mono leading-none`}
+      >
         <div className="px-0.5 min-w-0">
           <span className="block text-[5px] font-extrabold text-slate-500 font-sans uppercase truncate">ID/Lunch ID</span>
           <span className="font-extrabold text-slate-900 truncate block" title={lunchId}>{lunchId}</span>
         </div>
-        <div className="border-x border-slate-200 px-0.5 min-w-0">
-          <span className="block text-[5px] font-extrabold text-blue-700 font-sans uppercase truncate">PIN</span>
-          <span className="font-extrabold text-blue-950 truncate block" title={pinValue}>{pinValue}</span>
-        </div>
-        <div className="px-0.5 min-w-0">
-          <span className="block text-[5px] font-extrabold text-amber-700 font-sans uppercase truncate">Password</span>
-          <span className="font-extrabold text-amber-950 truncate block" title={passValue}>{passValue}</span>
-        </div>
+        {showPin && (
+          <div className={`${showPassword ? 'border-x' : 'border-l'} border-slate-200 px-0.5 min-w-0`}>
+            <span className="block text-[5px] font-extrabold text-blue-700 font-sans uppercase truncate">PIN</span>
+            <span className="font-extrabold text-blue-950 truncate block" title={pinValue}>{pinValue}</span>
+          </div>
+        )}
+        {showPassword && (
+          <div className={`${!showPin ? 'border-l border-slate-200' : ''} px-0.5 min-w-0`}>
+            <span className="block text-[5px] font-extrabold text-amber-700 font-sans uppercase truncate">Password</span>
+            <span className="font-extrabold text-amber-950 truncate block" title={passValue}>{passValue}</span>
+          </div>
+        )}
       </div>
 
       {/* Full-Width Scannable Barcode */}

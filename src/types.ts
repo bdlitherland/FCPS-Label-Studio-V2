@@ -52,9 +52,11 @@ export type LabelTemplateType =
   | 'staff-dymo'
   | 'charger-dymo'
   | 'charger-sheet'
-  | 'brother-ptouch';
+  | 'brother-ptouch'
+  | 'classroom-assignments';
 
 export type PrintSideOption = 'single' | 'front' | 'back' | 'duplex';
+export type ClassroomNoDeviceMode = 'separate-section' | 'inline' | 'hide';
 
 export interface PrintSettings {
   template: LabelTemplateType;
@@ -73,4 +75,10 @@ export interface PrintSettings {
   brotherHeaderText?: string;
   brotherTapeLength?: string;
   excludeNonPrintableGrades?: boolean;
+  printPasswords?: boolean;
+  printPins?: boolean;
+  maxCartSlots?: number;
+  noDeviceMode?: ClassroomNoDeviceMode;
+  selectedTeacher?: string;
 }
+

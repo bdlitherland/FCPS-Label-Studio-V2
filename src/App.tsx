@@ -112,6 +112,11 @@ export default function App() {
           brotherHeaderText: parsed.brotherHeaderText || 'FAIRFAX COUNTY PUBLIC SCHOOLS',
           brotherTapeLength: parsed.brotherTapeLength || '2.0in',
           excludeNonPrintableGrades: parsed.excludeNonPrintableGrades ?? true,
+          printPasswords: parsed.printPasswords ?? true,
+          printPins: parsed.printPins ?? true,
+          maxCartSlots: parsed.maxCartSlots ?? 30,
+          noDeviceMode: parsed.noDeviceMode || 'separate-section',
+          selectedTeacher: parsed.selectedTeacher || '',
           selectedIds: []
         };
       } catch (e) {
@@ -134,6 +139,11 @@ export default function App() {
       brotherHeaderText: 'FAIRFAX COUNTY PUBLIC SCHOOLS',
       brotherTapeLength: '2.0in',
       excludeNonPrintableGrades: true,
+      printPasswords: true,
+      printPins: true,
+      maxCartSlots: 30,
+      noDeviceMode: 'separate-section',
+      selectedTeacher: '',
       selectedIds: []
     };
   });
@@ -166,7 +176,8 @@ export default function App() {
     } else if (
       printSettings.template === 'ipad-5160' ||
       printSettings.template === 'student-5874' ||
-      printSettings.template === 'student-5523'
+      printSettings.template === 'student-5523' ||
+      printSettings.template === 'classroom-assignments'
     ) {
       setActiveRoster('students');
     }
@@ -211,7 +222,7 @@ export default function App() {
   };
 
   const handleSelectAll = (ids: string[]) => {
-    setSelectedIds(Array.from(new Set([...selectedIds, ...ids])));
+    setSelectedIds(Array.from(new Set(ids)));
   };
 
   const handleDeselectAll = () => {
@@ -395,6 +406,7 @@ export default function App() {
               <option value="teacher-5874">Business Card Labels — Teacher / Staff (Avery 5871 / 5874)</option>
               <option value="student-5523">Name Badge Labels — Student Double-Sided (Avery 5523 / 5392)</option>
               <option value="teacher-5523">Name Badge Labels — Teacher / Staff (Avery 5523 / 5392)</option>
+              <option value="classroom-assignments">Classroom Cart Assignments — Per Classroom (30 Slots + Overflow)</option>
               <option value="staff-dymo">Staff Badges — Dymo Roll Printer (FullName & Title/Role)</option>
               <option value="charger-dymo">Charger Labels — Dymo Roll Printer (1 per label / 3.5" x 2")</option>
               <option value="charger-sheet">Charger Labels — Sheet Paper (Avery 8.5" x 11" — 6 per sheet)</option>
@@ -411,11 +423,34 @@ export default function App() {
                   }
                   className="bg-transparent text-indigo-900 font-bold text-xs focus:outline-none cursor-pointer"
                 >
-                  <option value="duplex">Double-Sided (Both Front & Password Back)</option>
+                  <option value="duplex">
+                    {(printSettings.printPasswords ?? true)
+                      ? 'Double-Sided (Front & Password Back)'
+                      : 'Double-Sided (Front & Login Back)'}
+                  </option>
                   <option value="front">Front Page Only (Photo/Logo & Barcode)</option>
-                  <option value="back">Back Page Only (Password Credentials)</option>
+                  <option value="back">
+                    {(printSettings.printPasswords ?? true)
+                      ? 'Back Page Only (Password Credentials)'
+                      : 'Back Page Only (Login Credentials)'}
+                  </option>
                 </select>
               </div>
+            )}
+
+            {(printSettings.template === 'ipad-5160' ||
+              printSettings.template === 'student-5874' ||
+              printSettings.template === 'student-5523' ||
+              printSettings.template === 'classroom-assignments') && (
+              <label className="flex items-center gap-1.5 px-3 py-1 bg-white/60 backdrop-blur-xs rounded-xl border border-white/40 cursor-pointer select-none hover:bg-white/80 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={printSettings.printPasswords ?? true}
+                  onChange={(e) => handleUpdateSettings({ printPasswords: e.target.checked })}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="font-bold text-slate-800 text-[11px]">Print Passwords</span>
+              </label>
             )}
           </div>
 
@@ -450,6 +485,9 @@ export default function App() {
               onQuickPrintDevice={handleQuickPrintDevice}
               excludeNonPrintableGrades={printSettings.excludeNonPrintableGrades ?? true}
               onToggleExcludeNonPrintable={(val) => handleUpdateSettings({ excludeNonPrintableGrades: val })}
+              onSelectTeacherForPrint={(teacher) =>
+                handleUpdateSettings({ selectedTeacher: teacher === 'all' ? '' : teacher })
+              }
             />
           </div>
         ) : (

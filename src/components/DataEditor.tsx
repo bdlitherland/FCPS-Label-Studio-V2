@@ -11,7 +11,8 @@ import {
   removeMiddleInitials,
   normalizeStudentRecord,
   getGradeRank,
-  isExcludedGrade
+  isExcludedGrade,
+  studentHasDevice
 } from '../utils/studentDataHelpers';
 import { SyncRosterModal, SyncModalMode } from './SyncRosterModal';
 import {
@@ -36,7 +37,9 @@ import {
   Barcode,
   Utensils,
   User,
-  Key
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface DataEditorProps {
@@ -56,6 +59,7 @@ interface DataEditorProps {
   onQuickPrintDevice?: (id: string) => void;
   excludeNonPrintableGrades?: boolean;
   onToggleExcludeNonPrintable?: (exclude: boolean) => void;
+  onSelectTeacherForPrint?: (teacher: string) => void;
 }
 
 export const DataEditor: React.FC<DataEditorProps> = ({
@@ -74,7 +78,8 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   onClearRoster,
   onQuickPrintDevice,
   excludeNonPrintableGrades = true,
-  onToggleExcludeNonPrintable
+  onToggleExcludeNonPrintable,
+  onSelectTeacherForPrint
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrade, setFilterGrade] = useState<string>('all');
@@ -82,6 +87,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<RecordData | null>(null);
   const [syncModalMode, setSyncModalMode] = useState<SyncModalMode | null>(null);
+  const [showCredentials, setShowCredentials] = useState<boolean>(false);
 
   const isStaffMode = activeRoster === 'staff';
   const isDeviceMode = activeRoster === 'devices';
@@ -438,7 +444,9 @@ export const DataEditor: React.FC<DataEditorProps> = ({
 
         if (newRecords.length > 0) {
           onUpdateRecords(newRecords);
-          onSelectAll(newRecords.map(r => r.id));
+          const currentRosterIdSet = new Set(records.map(r => r.id));
+          const otherRosterSelected = selectedIds.filter(id => !currentRosterIdSet.has(id));
+          onSelectAll([...otherRosterSelected, ...newRecords.map(r => r.id)]);
         }
       },
       error: (error) => {
@@ -520,6 +528,35 @@ export const DataEditor: React.FC<DataEditorProps> = ({
     if (confirm('Are you sure you want to delete this record?')) {
       onUpdateRecords(records.filter(r => r.id !== id));
     }
+  };
+
+  // 1-click toggle whether a student has a computer / device assigned
+  const handleToggleStudentDevice = (id: string) => {
+    const updated = records.map((r) => {
+      if (r.id !== id) return r;
+      const nextHasDevice = !studentHasDevice(r);
+      return {
+        ...r,
+        hasLaptop: nextHasDevice ? 'Yes' : 'No',
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+    });
+    onUpdateRecords(updated);
+  };
+
+  // Bulk set device status for currently filtered student rows
+  const handleBulkSetFilteredDevice = (hasDevice: boolean) => {
+    const filteredSet = new Set(filteredRecords.map((r) => r.id));
+    if (filteredSet.size === 0) return;
+    const updated = records.map((r) => {
+      if (!filteredSet.has(r.id)) return r;
+      return {
+        ...r,
+        hasLaptop: hasDevice ? 'Yes' : 'No',
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+    });
+    onUpdateRecords(updated);
   };
 
   // Add Record
@@ -731,7 +768,10 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             </div>
             <select
               value={filterStaff}
-              onChange={(e) => setFilterStaff(e.target.value)}
+              onChange={(e) => {
+                setFilterStaff(e.target.value);
+                onSelectTeacherForPrint?.(e.target.value);
+              }}
               className="px-3 py-1.5 glass-input rounded-xl text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
             >
               <option value="all">All Teachers</option>
@@ -754,6 +794,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 onClick={() => {
                   setFilterGrade('all');
                   setFilterStaff('all');
+                  onSelectTeacherForPrint?.('all');
                   setSearchTerm('');
                 }}
                 className="text-xs text-indigo-700 hover:text-indigo-900 font-bold underline px-1 cursor-pointer"
@@ -865,12 +906,34 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           </button>
 
           {(filterGrade !== 'all' || filterStaff !== 'all' || searchTerm.trim() !== '') && (
-            <button
-              onClick={handleSelectOnlyFiltered}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-2xs cursor-pointer shadow-2xs"
-            >
-              <span>Select ONLY This {filterGrade !== 'all' ? `Grade ${filterGrade}` : 'Filter'} ({filteredRecords.length})</span>
-            </button>
+            <>
+              <button
+                onClick={handleSelectOnlyFiltered}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-2xs cursor-pointer shadow-2xs"
+              >
+                <span>Select ONLY This {filterGrade !== 'all' ? `Grade ${filterGrade}` : 'Filter'} ({filteredRecords.length})</span>
+              </button>
+              {!isStaffMode && !isDeviceMode && filteredRecords.length > 0 && (
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleBulkSetFilteredDevice(true)}
+                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg font-bold text-2xs cursor-pointer"
+                    title="Mark all filtered students as having a computer/device"
+                  >
+                    Mark Filtered: Has Device
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkSetFilteredDevice(false)}
+                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-lg font-bold text-2xs cursor-pointer"
+                    title="Mark all filtered students as No Device (then click individual students who have computers)"
+                  >
+                    No Device
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {!isStaffMode && !isDeviceMode && onToggleExcludeNonPrintable && (
@@ -895,6 +958,22 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               title="Select only students with printable grades (excludes non-grades PS, HS, 00)"
             >
               <span>Select Printable Grades Only ({printableStudentRecords.length})</span>
+            </button>
+          )}
+
+          {!isStaffMode && !isDeviceMode && (
+            <button
+              type="button"
+              onClick={() => setShowCredentials(prev => !prev)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs border cursor-pointer shadow-2xs transition-colors ${
+                showCredentials
+                  ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700'
+                  : 'bg-white/80 text-slate-700 border-slate-300 hover:bg-white'
+              }`}
+              title="Toggle visibility of student PINs & Passwords in the table (printing uses Print Settings)"
+            >
+              {showCredentials ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showCredentials ? 'Hide PINs & Passwords' : 'Show PINs & Passwords'}</span>
             </button>
           )}
 
@@ -972,10 +1051,31 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 <th className="p-3">User ID / Main Username</th>
                 <th className="p-3">Grade</th>
                 <th className="p-3">Teacher / Staff</th>
-                <th className="p-3">PIN</th>
-                <th className="p-3">Password</th>
+                <th className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCredentials(prev => !prev)}
+                    className="inline-flex items-center gap-1 hover:text-indigo-700 cursor-pointer"
+                    title={showCredentials ? 'Hide PINs & Passwords' : 'Show PINs & Passwords'}
+                  >
+                    <span>PIN</span>
+                    {showCredentials ? <EyeOff className="w-3 h-3 text-indigo-600" /> : <Eye className="w-3 h-3 text-slate-400" />}
+                  </button>
+                </th>
+                <th className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCredentials(prev => !prev)}
+                    className="inline-flex items-center gap-1 hover:text-indigo-700 cursor-pointer"
+                    title={showCredentials ? 'Hide PINs & Passwords' : 'Show PINs & Passwords'}
+                  >
+                    <span>Password</span>
+                    {showCredentials ? <EyeOff className="w-3 h-3 text-indigo-600" /> : <Eye className="w-3 h-3 text-slate-400" />}
+                  </button>
+                </th>
                 <th className="p-3">Barcode Value</th>
                 <th className="p-3">Room</th>
+                <th className="p-3 text-center">Device</th>
                 <th className="p-3 text-right">Actions</th>
               </tr>
             )}
@@ -983,7 +1083,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           <tbody className="divide-y divide-white/20 text-slate-800">
             {filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={11} className="p-12 text-center text-slate-500">
+                <td colSpan={12} className="p-12 text-center text-slate-500">
                   <div className="max-w-md mx-auto flex flex-col items-center">
                     <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-3">
                       <FileSpreadsheet className="w-6 h-6 text-indigo-600" />
@@ -1250,6 +1350,16 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                               placeholder="Room"
                             />
                           </td>
+                          <td className="p-2 text-center">
+                            <select
+                              value={studentHasDevice(editFormData) ? 'Yes' : 'No'}
+                              onChange={(e) => setEditFormData({ ...editFormData, hasLaptop: e.target.value })}
+                              className="px-2 py-1 glass-input rounded text-xs font-bold"
+                            >
+                              <option value="Yes">Has Device</option>
+                              <option value="No">No Device</option>
+                            </select>
+                          </td>
                         </>
                       )}
                       <td className="p-2 text-right">
@@ -1463,20 +1573,25 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStartEdit(record)}
-                        title="Click to edit iPad PIN"
+                        title={showCredentials ? 'Click to edit iPad PIN' : 'Hidden on screen — click Show PINs & Passwords or click to edit'}
                         className={`px-2 py-0.5 rounded-lg border cursor-pointer transition-colors ${
                           record.pin
                             ? 'bg-blue-500/15 text-blue-950 border-blue-500/25 hover:bg-blue-500/25'
                             : 'bg-slate-100 text-slate-400 border-slate-200 hover:text-blue-700 hover:border-blue-300'
                         }`}
                       >
-                        {record.pin || '+ PIN'}
+                        {record.pin ? (showCredentials ? record.pin : '••••') : '+ PIN'}
                       </button>
                     </td>
                     <td className="p-3 font-mono text-xs font-bold text-indigo-900">
-                      <span className="bg-indigo-500/15 text-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/20">
-                        {record.password || '—'}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(record)}
+                        title={showCredentials ? 'Click to edit Password' : 'Hidden on screen — click Show PINs & Passwords or click to edit'}
+                        className="bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/20 cursor-pointer transition-colors"
+                      >
+                        {record.password ? (showCredentials ? record.password : '••••••••') : '—'}
+                      </button>
                     </td>
                     <td className="p-3 font-mono text-slate-700">
                       <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-xs border border-slate-200 font-mono">
@@ -1486,6 +1601,21 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                     </td>
                     <td className="p-3 text-slate-800 font-medium">
                       {record.roomNumber || '—'}
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStudentDevice(record.id)}
+                        title="Click to toggle whether this student has a computer/device for Classroom Cart Assignments"
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                          studentHasDevice(record)
+                            ? 'bg-emerald-500/15 text-emerald-900 border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-slate-200/80 text-slate-600 border-slate-300 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300'
+                        }`}
+                      >
+                        <Laptop className="w-3 h-3" />
+                        <span>{studentHasDevice(record) ? 'Has Device' : 'No Device'}</span>
+                      </button>
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -1525,7 +1655,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             .filter((u) => !records.some((r) => r.id === u.id))
             .map((u) => u.id);
           if (addedIds.length > 0) {
-            onSelectAll(addedIds);
+            onSelectAll([...selectedIds, ...addedIds]);
           }
         }}
       />

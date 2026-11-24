@@ -8,12 +8,14 @@ interface StudentCardBackProps {
   data: RecordData;
   schoolName?: string;
   hideExcludedGrade?: boolean;
+  showPassword?: boolean;
 }
 
 export const StudentCardBack: React.FC<StudentCardBackProps> = ({
   data,
   schoolName = 'Glen Forest Elementary School',
-  hideExcludedGrade = true
+  hideExcludedGrade = true,
+  showPassword = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
   const lunchId = data.lunchId || data.studentId || '—';
@@ -32,7 +34,7 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
         <div className="flex items-center gap-1.5">
           <Shield className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
           <span className="text-[10px] font-bold uppercase tracking-wider">
-            Student Login & Credentials
+            {showPassword ? 'Student Login & Credentials' : 'Student Login Card'}
           </span>
         </div>
         <span className="text-[8.5px] font-medium text-blue-100 opacity-90 truncate max-w-[1.2in]">
@@ -55,28 +57,39 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
         </div>
       </div>
 
-      {/* User ID / Main Username & Password Row */}
-      <div className="my-0.5 grid grid-cols-2 gap-1.5">
+      {/* User ID / Main Username & Optional Password Row */}
+      <div className={`my-0.5 grid ${showPassword ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5`}>
         {/* User ID / Main Username */}
-        <div className="bg-blue-50/80 border border-blue-200 rounded p-1 flex flex-col items-center justify-center text-center">
+        <div
+          className={`bg-blue-50/80 border border-blue-200 rounded flex flex-col items-center justify-center text-center ${
+            showPassword ? 'p-1' : 'py-1.5 px-2'
+          }`}
+        >
           <span className="text-[7.5px] font-extrabold text-blue-900 uppercase tracking-tight">
-            User ID / Username
+            User ID / Main Username
           </span>
-          <span className="text-[11px] font-black font-mono text-blue-950 truncate max-w-full select-all" title={mainUsername}>
+          <span
+            className={`${
+              showPassword ? 'text-[11px]' : 'text-[13px]'
+            } font-black font-mono text-blue-950 truncate max-w-full select-all`}
+            title={mainUsername}
+          >
             {mainUsername || '—'}
           </span>
         </div>
 
-        {/* Password */}
-        <div className="bg-amber-50 border border-amber-300 rounded p-1 flex flex-col items-center justify-center text-center shadow-2xs">
-          <div className="flex items-center gap-0.5 text-[7.5px] font-extrabold text-amber-900 uppercase tracking-tight">
-            <Key className="w-2.5 h-2.5 text-amber-700" />
-            <span>FCPS Password</span>
+        {/* Password (only rendered when enabled) */}
+        {showPassword && (
+          <div className="bg-amber-50 border border-amber-300 rounded p-1 flex flex-col items-center justify-center text-center shadow-2xs">
+            <div className="flex items-center gap-0.5 text-[7.5px] font-extrabold text-amber-900 uppercase tracking-tight">
+              <Key className="w-2.5 h-2.5 text-amber-700" />
+              <span>FCPS Password</span>
+            </div>
+            <span className="text-[11px] font-black font-mono text-amber-950 truncate max-w-full select-all" title={data.password || 'GFES#2026'}>
+              {data.password || 'GFES#2026'}
+            </span>
           </div>
-          <span className="text-[11px] font-black font-mono text-amber-950 truncate max-w-full select-all" title={data.password || 'GFES#2026'}>
-            {data.password || 'GFES#2026'}
-          </span>
-        </div>
+        )}
       </div>
 
       {/* Footer Info: Grade, Room, Teacher last name & Full-Width Barcode */}
