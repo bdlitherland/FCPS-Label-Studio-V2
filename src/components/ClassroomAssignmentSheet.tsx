@@ -9,6 +9,7 @@ import {
   getStudentLastName,
   resolveMainUsername,
   studentHasDevice,
+  isTenDigitDeviceBarcode,
 } from '../utils/studentDataHelpers';
 
 export interface ClassroomAssignedRow {
@@ -164,7 +165,7 @@ export function buildClassroomAssignmentPages(
             record: student,
             hasDevice: false,
             isOverflow: false,
-            slotLabel: 'No Device',
+            slotLabel: '—',
             displayLastFirst: makeDisplayName(student),
           });
         }
@@ -190,7 +191,7 @@ export function buildClassroomAssignmentPages(
           rowType: 'divider',
           hasDevice: false,
           isOverflow: false,
-          slotLabel: `Students Without Assigned Device (${withoutDevice.length}) — No Cart Slot`,
+          slotLabel: `No 10-Digit Device Barcode (${withoutDevice.length}) — No Cart Slot`,
           displayLastFirst: '',
         });
         withoutDevice.forEach((student) => {
@@ -199,7 +200,7 @@ export function buildClassroomAssignmentPages(
             record: student,
             hasDevice: false,
             isOverflow: false,
-            slotLabel: 'No Device',
+            slotLabel: '—',
             displayLastFirst: makeDisplayName(student),
           });
         });
@@ -252,7 +253,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
   showPassword = true,
   showPin = true,
 }) => {
-  const colCount = 4 + (showPin ? 1 : 0) + (showPassword ? 1 : 0);
+  const colCount = 5 + (showPin ? 1 : 0) + (showPassword ? 1 : 0);
 
   return (
     <div
@@ -313,7 +314,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
             )}
             {page.noDeviceCount > 0 && (
               <span className="inline-block bg-slate-200 text-slate-800 border border-slate-300 px-1.5 py-0.2 rounded font-bold">
-                {page.noDeviceCount} No Device
+                {page.noDeviceCount} Without Barcode
               </span>
             )}
           </div>
@@ -327,31 +328,34 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
         {/* Student Cart Assignment Table */}
         {page.rows.length === 0 ? (
           <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center text-xs text-slate-500 font-semibold mt-4">
-            No students in this classroom currently have a device assigned ({page.noDeviceCount} marked No Device).
+            No students in this classroom have a 10-digit device barcode assigned ({page.noDeviceCount} without barcode).
           </div>
         ) : (
-          <table className="w-full border-collapse text-[10px] leading-tight">
+          <table className="w-full border-collapse text-[9.5px] leading-tight">
             <thead>
-              <tr className="bg-blue-900 text-white text-left text-[9px] uppercase tracking-wider">
-                <th className="py-1.5 px-2 font-extrabold border border-blue-900 w-[1.45in]">
-                  Cart Assignment
+              <tr className="bg-blue-900 text-white text-left text-[8.5px] uppercase tracking-wider">
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.15in]">
+                  Cart Slot
                 </th>
-                <th className="py-1.5 px-2 font-extrabold border border-blue-900">
-                  Student Name (A–Z Last Name)
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900">
+                  Student Name (A–Z)
                 </th>
-                <th className="py-1.5 px-2 font-extrabold border border-blue-900 w-[1.05in]">
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[0.85in]">
                   ID / Lunch ID
                 </th>
-                <th className="py-1.5 px-2 font-extrabold border border-blue-900 w-[1.35in]">
-                  User ID / Username
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.05in]">
+                  User ID
+                </th>
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.05in]">
+                  Barcode
                 </th>
                 {showPin && (
-                  <th className="py-1.5 px-2 font-extrabold border border-blue-900 w-[0.75in] text-center">
+                  <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[0.6in] text-center">
                     PIN
                   </th>
                 )}
                 {showPassword && (
-                  <th className="py-1.5 px-2 font-extrabold border border-blue-900 w-[1.1in]">
+                  <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[0.95in]">
                     Password
                   </th>
                 )}
@@ -364,7 +368,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                     <tr key={`div_${idx}`} className="bg-slate-200/90">
                       <td
                         colSpan={colCount}
-                        className="py-1 px-2 border border-slate-300 text-[9px] font-black uppercase tracking-wider text-slate-800"
+                        className="py-1 px-1.5 border border-slate-300 text-[8.5px] font-black uppercase tracking-wider text-slate-800"
                       >
                         {row.slotLabel}
                       </td>
@@ -380,6 +384,17 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                 const lastName = getStudentLastName(student);
                 const firstName = getStudentFirstName(student);
 
+                // Supply the Barcode value from the sheet (preserving 10-digit leading zeros; ignore legacy username/ID fallback copies)
+                const rawBar = String(student.barcode || '').trim();
+                const normalizedAsset = isTenDigitDeviceBarcode(student.assetTag)
+                  ? String(student.assetTag).trim().replace(/[\s-]+/g, '')
+                  : String(student.assetTag || '').trim();
+                const rawDeviceBarcode = isTenDigitDeviceBarcode(rawBar)
+                  ? rawBar.replace(/[\s-]+/g, '')
+                  : rawBar && rawBar !== mainUsername && rawBar !== lunchId
+                  ? rawBar
+                  : normalizedAsset;
+
                 return (
                   <tr
                     key={student.id}
@@ -393,27 +408,25 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                         : 'bg-white'
                     }
                   >
-                    <td className="py-1 px-2 border border-slate-300 font-bold whitespace-nowrap">
+                    <td className="py-1 px-1.5 border border-slate-300 font-bold whitespace-nowrap">
                       {!row.hasDevice ? (
-                        <span className="inline-block bg-slate-200 text-slate-700 border border-slate-300 px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-tight">
-                          No Device
-                        </span>
+                        <span className="text-slate-400 font-mono text-[9.5px]">—</span>
                       ) : row.isOverflow ? (
-                        <span className="inline-block bg-amber-100 text-amber-950 border border-amber-400 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-tight">
+                        <span className="inline-block bg-amber-100 text-amber-950 border border-amber-400 px-1 py-0.2 rounded text-[8px] font-black uppercase tracking-tight">
                           {row.slotLabel}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-black text-blue-950">
-                          <span className="inline-block w-5 text-center bg-blue-100 text-blue-900 rounded py-0.2 border border-blue-200">
+                        <span className="inline-flex items-center gap-1 font-mono text-[9.5px] font-black text-blue-950">
+                          <span className="inline-block w-4.5 text-center bg-blue-100 text-blue-900 rounded py-0.2 border border-blue-200">
                             {row.orderNumber}
                           </span>
-                          <span className="text-[9px] font-sans font-semibold text-slate-600">
+                          <span className="text-[8.5px] font-sans font-semibold text-slate-600">
                             Slot #{row.orderNumber}
                           </span>
                         </span>
                       )}
                     </td>
-                    <td className="py-1 px-2 border border-slate-300 truncate max-w-[2.1in]">
+                    <td className="py-1 px-1.5 border border-slate-300 truncate max-w-[1.85in]">
                       {lastName && firstName ? (
                         <>
                           <strong className={`font-extrabold ${row.hasDevice ? 'text-slate-950' : 'text-slate-700'}`}>
@@ -425,19 +438,26 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                         <strong className="font-extrabold">{row.displayLastFirst}</strong>
                       )}
                     </td>
-                    <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-slate-800">
+                    <td className="py-1 px-1.5 border border-slate-300 font-mono font-bold text-slate-800">
                       {lunchId}
                     </td>
-                    <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-blue-950 truncate max-w-[1.45in]">
+                    <td className="py-1 px-1.5 border border-slate-300 font-mono font-bold text-blue-950 truncate max-w-[1.1in]">
                       {mainUsername || '—'}
                     </td>
+                    <td className="py-1 px-1.5 border border-slate-300 font-mono font-bold">
+                      {rawDeviceBarcode ? (
+                        <span className="text-slate-950">{rawDeviceBarcode}</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     {showPin && (
-                      <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-center text-blue-900">
+                      <td className="py-1 px-1.5 border border-slate-300 font-mono font-bold text-center text-blue-900">
                         {pinVal}
                       </td>
                     )}
                     {showPassword && (
-                      <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-amber-950">
+                      <td className="py-1 px-1.5 border border-slate-300 font-mono font-bold text-amber-950 truncate max-w-[1in]">
                         {passVal}
                       </td>
                     )}
@@ -452,7 +472,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
       {/* Sheet Footer */}
       <div className="pt-1.5 mt-2 border-t border-slate-300 flex items-center justify-between text-[8.5px] text-slate-500 font-semibold shrink-0">
         <span>
-          Slots 1–{page.maxCartSlots}: Standard Cart • Over {page.maxCartSlots}: Additional Charging • No Device: No Slot Assigned
+          Slots 1–{page.maxCartSlots}: Standard Cart • Over {page.maxCartSlots}: Additional Charging • Device Barcode: 10-Digit Asset Tag
         </span>
         <span>
           {page.teacherName} {page.roomNumber ? `(Rm ${page.roomNumber})` : ''} • Page {page.pageInClassroom}/{page.totalPagesInClassroom}

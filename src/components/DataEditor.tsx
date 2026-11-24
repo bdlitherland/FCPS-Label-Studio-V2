@@ -284,8 +284,6 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               '';
             const rawUsername = item['Username'] || item.username || '';
             const rawBarcode = item['Barcode'] || item.barcode || '';
-            const hasBarcodeColumn =
-              item['Barcode'] !== undefined || item.barcode !== undefined;
             const nonAssetBarcode = isTenDigitDeviceBarcode(rawBarcode) ? '' : rawBarcode;
             // If studentId and userId do not match, userId is treated as main username
             const username =
@@ -296,7 +294,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               rawUsername ||
               extractUsername(emailRaw, studentId);
             const userId = rawUserId || username;
-            const barcodeVal = hasBarcodeColumn ? rawBarcode : (rawBarcode || username || studentId);
+            const barcodeVal = String(rawBarcode).trim();
 
             const rawName =
               item['Student Name'] ||
@@ -633,12 +631,12 @@ export const DataEditor: React.FC<DataEditorProps> = ({
         grade: '03',
         staffName: 'April Marcot',
         password: `GFES#${Math.floor(1000 + Math.random() * 9000)}`,
-        barcode: sampleUname,
+        barcode: '',
         pin: '',
         roomNumber: '307',
         hasSleeve: 'Yes',
         hasCharger: 'Yes',
-        hasLaptop: 'Yes',
+        hasLaptop: 'No',
         hasHeadphones: 'No',
         attendingSummerPrograms: 'No',
         deviceCheckedOutForSummer: 'No',
@@ -1287,15 +1285,10 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                               value={editFormData.userId || editFormData.username || ''}
                               onChange={(e) => {
                                 const newU = e.target.value;
-                                const prevU = editFormData.userId || editFormData.username || '';
                                 setEditFormData({
                                   ...editFormData,
                                   userId: newU,
                                   username: newU,
-                                  barcode:
-                                    !editFormData.barcode || editFormData.barcode === prevU || editFormData.barcode === editFormData.studentId
-                                      ? newU || editFormData.studentId || editFormData.barcode
-                                      : editFormData.barcode,
                                   email: newU ? `${newU}@fcpsschools.net` : editFormData.email
                                 });
                               }}

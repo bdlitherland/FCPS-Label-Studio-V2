@@ -18,8 +18,8 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
   showPassword = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
-  const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || mainUsername;
+  const lunchId = String(data.lunchId || data.studentId || '').trim();
+  const barcodeValue = lunchId || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -52,7 +52,7 @@ export const StudentCardBack: React.FC<StudentCardBackProps> = ({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
-            ID / Lunch ID: <strong className="text-slate-950">{lunchId}</strong>
+            ID / Lunch ID: <strong className="text-slate-950">{lunchId || '—'}</strong>
           </span>
         </div>
       </div>

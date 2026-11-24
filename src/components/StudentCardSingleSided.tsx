@@ -25,8 +25,8 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
   showPassword = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
-  const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || mainUsername;
+  const lunchId = String(data.lunchId || data.studentId || '').trim();
+  const barcodeValue = lunchId || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -86,7 +86,7 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
               ID / Lunch ID
             </span>
             <span className={`${showPassword ? 'text-[9.5px]' : 'text-[10.5px]'} font-black font-mono text-slate-950 truncate`}>
-              {lunchId}
+              {lunchId || '—'}
             </span>
           </div>
 
@@ -116,7 +116,7 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
         </div>
       </div>
 
-      {/* Bottom Row: Barcode scanning Username + Centered User ID below */}
+      {/* Bottom Row: Scannable ID / Lunch ID Barcode */}
       <div className="pt-0.5 border-t border-slate-200 flex flex-col items-center justify-end shrink-0">
         <div className="w-full flex justify-center items-center h-[28px] overflow-hidden">
           <BarcodeGenerator
@@ -128,9 +128,9 @@ export const StudentCardSingleSided: React.FC<StudentCardSingleSidedProps> = ({
           />
         </div>
 
-        {/* Centered User ID / Username directly under barcode */}
+        {/* Centered ID / Lunch ID directly under barcode */}
         <div className="w-full flex justify-center items-center text-[7.5px] text-slate-700 font-bold mt-0.5">
-          <span>User ID / Username: <strong className="font-mono text-blue-950 font-black">{mainUsername || '—'}</strong></span>
+          <span>ID / Lunch ID: <strong className="font-mono text-slate-950 font-black">{lunchId || '—'}</strong></span>
         </div>
       </div>
     </div>

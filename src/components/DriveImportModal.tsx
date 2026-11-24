@@ -219,7 +219,7 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
                 <li><strong>User ID:</strong> Login username — if different from Student ID, User ID is used as the login username</li>
                 <li><strong>Grade / Room Name / Staff Name:</strong> Grade level ("03"), Room ("307"), and Teacher ("Marcot, April M")</li>
                 <li><strong>PIN &amp; Password:</strong> Optional iPad PIN ("1234") and network/iPad password</li>
-                <li><strong>Barcode:</strong> Barcode value (defaults to login username or Student ID if blank)</li>
+                <li><strong>Barcode:</strong> Device barcode value from the sheet (displayed on Classroom Cart sheets)</li>
                 <li><strong>Equipment Flags:</strong> hasHeadphones, hasSleeve, hasCharger, hasLaptop ("Yes" / "No")</li>
               </ul>
             </div>

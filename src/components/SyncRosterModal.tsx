@@ -329,7 +329,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
               studentId,
               userId: rawUserId || resolvedUser,
               username: resolvedUser,
-              barcode: hasBarcodeColumn ? barcode : (barcode || resolvedUser || studentId),
+              barcode,
               hasBarcodeColumn,
               studentName,
               firstName,
@@ -427,20 +427,10 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           const currentUser = resolveMainUsername(rec).trim();
 
           // Compare current ID / Lunch ID (and current username) against User ID from SIS Sync:
-          // Whenever out of sync, update login username / userId / barcode to SIS User ID
+          // Whenever out of sync, update login username / userId to SIS User ID (preserve device Barcode)
           if (sisUserId && (currentLunchId !== sisUserId || currentUser !== sisUserId || next.userId !== sisUserId)) {
             next.userId = sisUserId;
             next.username = sisUserId;
-            if (
-              !next.barcode ||
-              next.barcode === currentLunchId ||
-              next.barcode === rec.studentId ||
-              next.barcode === currentUser ||
-              next.barcode === rec.username ||
-              next.barcode === rec.userId
-            ) {
-              next.barcode = sisUserId;
-            }
             if (
               !next.email ||
               next.email === `${currentLunchId}@fcpsschools.net` ||
@@ -469,16 +459,12 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           if (incUser && incUser !== next.studentId && !isTenDigitDeviceBarcode(incUser)) {
             next.userId = incUser;
             next.username = incUser;
-            if (!inc.hasBarcodeColumn && (!next.barcode || next.barcode === next.studentId || next.barcode === rec.username || next.barcode === rec.userId)) {
-              next.barcode = inc.barcode && inc.barcode !== next.studentId ? inc.barcode : incUser;
-            }
             if (!next.email || next.email === `${next.studentId}@fcpsschools.net` || next.email === `${rec.username}@fcpsschools.net`) {
               next.email = `${incUser}@fcpsschools.net`;
             }
-          } else if (inc.barcode && !incIsAssetBarcode && inc.barcode !== next.studentId) {
+          } else if (inc.barcode && !incIsAssetBarcode && inc.barcode !== next.studentId && !inc.hasBarcodeColumn) {
             next.userId = inc.barcode;
             next.username = inc.barcode;
-            next.barcode = inc.barcode;
           }
         }
         if (syncEquipment) {
@@ -697,7 +683,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                           onChange={(e) => setSyncUsername(e.target.checked)}
                           className="rounded text-teal-600 focus:ring-teal-500"
                         />
-                        <span>Update Out-of-Sync Login to SIS User ID &amp; Barcode</span>
+                        <span>Update Out-of-Sync Login to SIS User ID</span>
                       </label>
                       <label className="inline-flex items-center gap-1.5 cursor-pointer">
                         <input
@@ -746,7 +732,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                           onChange={(e) => setSyncUsername(e.target.checked)}
                           className="rounded text-indigo-600 focus:ring-indigo-500"
                         />
-                        <span>User ID / Main Username &amp; Barcode</span>
+                        <span>User ID / Main Username (Login)</span>
                       </label>
                       <label className="inline-flex items-center gap-1.5 cursor-pointer">
                         <input
@@ -755,7 +741,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                           onChange={(e) => setSyncEquipment(e.target.checked)}
                           className="rounded text-indigo-600 focus:ring-indigo-500"
                         />
-                        <span>Room, Headphones, Sleeve, Charger, Laptop &amp; Summer</span>
+                        <span>Room, Barcode, Headphones, Sleeve, Charger, Laptop &amp; Summer</span>
                       </label>
                     </>
                   )}

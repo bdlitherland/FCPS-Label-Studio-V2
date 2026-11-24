@@ -305,7 +305,7 @@ export function resolveMainUsername(record: Partial<RecordData>): string {
  * - Student Name = Formatted as "First Last" without middle initials
  * - Lunch ID = studentId / FCPS ID
  * - User ID / Main Username = userId (if userId !== studentId) or Student Email 1 truncated
- * - Barcode = Main Username (for barcode scanning)
+ * - Barcode = Device barcode value from sheet (or blank if not assigned)
  * - Teacher Name = Just the last name (from "Last, First M" or "First Last")
  */
 export function normalizeStudentRecord(item: Partial<RecordData>, index: number = 0): RecordData {
@@ -336,11 +336,9 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     username = userIdRaw || explicitUsername || emailUsername || studentIdRaw;
   }
 
-  // Preserve explicit Barcode header value (even if blank), otherwise default to main username
-  const hasBarcodeColumn =
-    item.barcode !== undefined || (item as any)['Barcode'] !== undefined;
+  // Preserve Barcode strictly from the sheet/record (do not fall back to username or studentId)
   const rawBarcode = String(item.barcode ?? (item as any)['Barcode'] ?? '').trim();
-  const barcode = hasBarcodeColumn ? rawBarcode : String(username || studentIdRaw).trim();
+  const barcode = rawBarcode;
 
   // Student name handling in "First Last" format without middle initials
   const rawStudentName = item.studentName || (item as any)['Student Name'] || (item as any)['FullName'] || (item as any)['Full Name'] || (item as any)['Name'] || '';

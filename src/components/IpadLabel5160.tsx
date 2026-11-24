@@ -19,8 +19,8 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
   showPin = true,
 }) => {
   const mainUsername = resolveMainUsername(data);
-  const lunchId = String(data.lunchId || data.studentId || '—');
-  const barcodeValue = String(data.barcode || mainUsername || '');
+  const lunchId = String(data.lunchId || data.studentId || '').trim();
+  const barcodeValue = lunchId || mainUsername || '';
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const pinValue = String(data.pin ?? '').trim() || '—';
@@ -70,7 +70,7 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
       >
         <div className="px-0.5 min-w-0">
           <span className="block text-[5px] font-extrabold text-slate-500 font-sans uppercase truncate">ID/Lunch ID</span>
-          <span className="font-extrabold text-slate-900 truncate block" title={lunchId}>{lunchId}</span>
+          <span className="font-extrabold text-slate-900 truncate block" title={lunchId}>{lunchId || '—'}</span>
         </div>
         {showPin && (
           <div className={`${showPassword ? 'border-x' : 'border-l'} border-slate-200 px-0.5 min-w-0`}>

@@ -575,8 +575,8 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                   title="Students marked No Device never take up cart slots 1–30"
                 >
                   <option value="separate-section">Separate Section Below Cart Slots (No Slot)</option>
-                  <option value="inline">Inline A–Z (Marked "No Device", No Slot)</option>
-                  <option value="hide">Hide (Only List Device Holders)</option>
+                  <option value="inline">Inline A–Z (No Cart Slot if No Barcode)</option>
+                  <option value="hide">Hide (Only List Students With Barcode)</option>
                 </select>
               </div>
             </>
@@ -955,7 +955,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             )}
             {' '}
             {isClassroomAssignment
-              ? `${classroomDeviceCounts.withDevice} with device • ${classroomDeviceCounts.withoutDevice} no device • `
+              ? `${classroomDeviceCounts.withDevice} with 10-digit barcode • ${classroomDeviceCounts.withoutDevice} without barcode • `
               : `${displayRecords.length} printable${displayRecords.length !== selectedRecords.length ? ` (${selectedRecords.length} selected)` : ''} • `}
             Total Pages: {totalPages * ((settings.template === 'student-5874' || settings.template === 'student-5523') && settings.printSide === 'duplex' ? 2 : 1)}
           </span>

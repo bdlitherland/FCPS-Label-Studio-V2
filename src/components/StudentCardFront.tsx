@@ -22,8 +22,8 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
   hideExcludedGrade = true
 }) => {
   const mainUsername = resolveMainUsername(data);
-  const lunchId = data.lunchId || data.studentId || '—';
-  const barcodeValue = data.barcode || mainUsername;
+  const lunchId = String(data.lunchId || data.studentId || '').trim();
+  const barcodeValue = lunchId || mainUsername;
   const teacherLastName = extractTeacherLastName(data.staffName);
   const studentDisplayName = formatStudentFullName(data.firstName, data.lastName, data.studentName);
   const displayGrade = formatGradeDisplay(data.grade, hideExcludedGrade);
@@ -84,7 +84,7 @@ export const StudentCardFront: React.FC<StudentCardFrontProps> = ({
             {studentDisplayName}
           </span>
           <div className="text-[9.5px] font-bold text-gray-800 space-x-2">
-            <span>ID / Lunch ID: <strong className="font-mono text-slate-950">{lunchId}</strong></span>
+            <span>ID / Lunch ID: <strong className="font-mono text-slate-950">{lunchId || '—'}</strong></span>
           </div>
         </div>
 
