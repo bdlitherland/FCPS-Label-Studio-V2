@@ -11,6 +11,7 @@ import {
   getStudentFirstName,
   getStudentLastName,
   isTenDigitDeviceBarcode,
+  isValidDeviceBarcode,
   normalizeBarcodeValue,
   getRowFieldCaseInsensitive,
 } from '../utils/studentDataHelpers';
@@ -149,7 +150,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
 
     incoming.forEach((inc) => {
       const inId = inc.studentId.trim().toLowerCase();
-      const nonAssetBarcode = isTenDigitDeviceBarcode(inc.barcode) ? '' : inc.barcode;
+      const nonAssetBarcode = isValidDeviceBarcode(inc.barcode, inc) ? '' : inc.barcode;
       const inUser = (inc.userId || inc.username || (nonAssetBarcode !== inc.studentId ? nonAssetBarcode : '')).trim().toLowerCase();
       const inBarcode = inc.barcode.trim().toLowerCase();
 
@@ -295,8 +296,13 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
       return;
     }
 
-    Papa.parse(text.trim(), {
+    const trimmedText = text.trim();
+    const firstLines = trimmedText.split(/\r?\n/).slice(0, 5);
+    const hasTabs = firstLines.some((line) => line.includes('\t'));
+
+    Papa.parse(trimmedText, {
       header: false,
+      delimiter: hasTabs ? '\t' : '',
       skipEmptyLines: true,
       complete: (results) => {
         const rawRows = (results.data as string[][]) || [];
@@ -314,8 +320,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           const rowStr = rawRows[i].join(' ').toLowerCase();
           if (
             rowStr.includes('student id') ||
+            rowStr.includes('studentid') ||
             rowStr.includes('student name') ||
+            rowStr.includes('studentname') ||
             rowStr.includes('user id') ||
+            rowStr.includes('userid') ||
             rowStr.includes('lunch id') ||
             rowStr.includes('barcode') ||
             rowStr.includes('assettag') ||
@@ -379,7 +388,18 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
             );
             const hasBarcodeColumn = barcodeLookup.found;
             const barcode = normalizeBarcodeValue(barcodeLookup.value);
-            const nonAssetBarcode = isTenDigitDeviceBarcode(barcode) ? '' : barcode;
+            const pin = getField('pin', 'PIN', 'Pin', 'iPad PIN', 'iPad Pin', 'Device PIN', 'Passcode', 'PIN Code');
+            const stateTestingId = getField('stateTestingId', 'State Testing ID', 'Testing ID');
+            const nonAssetBarcode = isValidDeviceBarcode(barcode, {
+              studentId,
+              userId: rawUserId,
+              username: rawUsername,
+              stateTestingId,
+              pin,
+              email,
+            })
+              ? ''
+              : barcode;
 
             // If Student ID != User ID, User ID is the login username (never treat a 10-digit device barcode as username)
             const resolvedUser =
@@ -522,11 +542,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
         }
         if (inc.hasBarcodeColumn) {
           next.barcode = inc.barcode;
-          if (isTenDigitDeviceBarcode(inc.barcode)) {
+          if (isValidDeviceBarcode(inc.barcode, next)) {
             next.assetTag = inc.barcode;
             delete next.manualHasDevice;
             next.hasLaptop = 'Yes';
-          } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+          } else if (!isValidDeviceBarcode(next.assetTag, next)) {
             delete next.manualHasDevice;
             next.hasLaptop = 'No';
           }
@@ -542,8 +562,8 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
         }
         if (syncUsername) {
           const incUser = inc.userId || inc.username;
-          const incIsAssetBarcode = isTenDigitDeviceBarcode(inc.barcode);
-          if (incUser && incUser !== next.studentId && !isTenDigitDeviceBarcode(incUser)) {
+          const incIsAssetBarcode = isValidDeviceBarcode(inc.barcode, next);
+          if (incUser && incUser !== next.studentId && !isValidDeviceBarcode(incUser, next)) {
             next.userId = incUser;
             next.username = incUser;
             if (!next.email || next.email === `${next.studentId}@fcpsschools.net` || next.email === `${rec.username}@fcpsschools.net`) {
@@ -560,11 +580,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           if (inc.hasCharger) next.hasCharger = inc.hasCharger;
           if (inc.hasBarcodeColumn) {
             next.barcode = inc.barcode;
-            if (isTenDigitDeviceBarcode(inc.barcode)) {
+            if (isValidDeviceBarcode(inc.barcode, next)) {
               next.assetTag = inc.barcode;
               delete next.manualHasDevice;
               next.hasLaptop = 'Yes';
-            } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+            } else if (!isValidDeviceBarcode(next.assetTag, next)) {
               delete next.manualHasDevice;
               next.hasLaptop = inc.hasLaptop || 'No';
             }
@@ -576,11 +596,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           if (inc.deviceCheckedOutForSummer) next.deviceCheckedOutForSummer = inc.deviceCheckedOutForSummer;
         } else if (inc.hasBarcodeColumn) {
           next.barcode = inc.barcode;
-          if (isTenDigitDeviceBarcode(inc.barcode)) {
+          if (isValidDeviceBarcode(inc.barcode, next)) {
             next.assetTag = inc.barcode;
             delete next.manualHasDevice;
             next.hasLaptop = 'Yes';
-          } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+          } else if (!isValidDeviceBarcode(next.assetTag, next)) {
             delete next.manualHasDevice;
             next.hasLaptop = 'No';
           }

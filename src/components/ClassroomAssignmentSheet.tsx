@@ -199,7 +199,7 @@ export function buildClassroomAssignmentPages(
           rowType: 'divider',
           hasDevice: false,
           isOverflow: false,
-          slotLabel: `No 10-Digit Device Barcode (${withoutDevice.length}) — No Cart Slot`,
+          slotLabel: `No Device Barcode (${withoutDevice.length}) — No Cart Slot`,
           displayLastFirst: '',
         });
         withoutDevice.forEach((student) => {
@@ -337,7 +337,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
         {/* Student Cart Assignment Table */}
         {page.rows.length === 0 ? (
           <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center text-xs text-slate-500 font-semibold mt-4">
-            No students in this classroom have a 10-digit device barcode assigned ({page.noDeviceCount} without barcode).
+            No students in this classroom have a device barcode assigned ({page.noDeviceCount} without barcode).
           </div>
         ) : (
           <table className="w-full table-fixed border-collapse text-[9.5px] leading-tight">

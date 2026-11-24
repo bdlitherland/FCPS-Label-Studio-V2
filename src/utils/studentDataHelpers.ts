@@ -157,29 +157,104 @@ export function isExcludedGrade(gradeStr?: string): boolean {
   );
 }
 
+const NON_DEVICE_BARCODE_PLACEHOLDERS = new Set([
+  '',
+  '-',
+  '--',
+  '—',
+  'no',
+  'none',
+  'n/a',
+  'na',
+  'null',
+  'undefined',
+  'false',
+  '0',
+  'no device',
+  'no barcode',
+  'unassigned',
+  'yes',
+  'true',
+]);
+
 /**
  * Normalizes a barcode string from spreadsheets/CSVs:
- * - Strips leading spreadsheet apostrophes (e.g. "'0098184741")
- * - Collapses spaces/hyphens when it represents a 10-digit leading-zero device barcode
+ * - Strips invisible Unicode spaces/BOM, quotes, leading apostrophes ("'0098184741"), and trailing ".0"
+ * - Restores leading zeros on 8-9 digit numeric device barcodes stripped by Excel/Google Sheets (e.g. "98184741" -> "0098184741")
+ * - Preserves 10-digit and alphanumeric asset tags cleanly
  */
 export function normalizeBarcodeValue(val?: string | number | null): string {
   if (val === undefined || val === null) return '';
-  const trimmed = String(val).trim().replace(/^'+/, '').replace(/\.0+$/, '').trim();
-  const compact = trimmed.replace(/[\s-]+/g, '');
-  if (/^0\d{9}$/.test(compact)) {
+  const cleaned = String(val)
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, '')
+    .replace(/^'+/, '')
+    .replace(/\.0+$/, '')
+    .trim();
+
+  if (!cleaned) return '';
+
+  const compact = cleaned.replace(/[\s-]+/g, '');
+  if (/^\d{10}$/.test(compact)) {
     return compact;
   }
-  return trimmed;
+  if (/^\d{8,9}$/.test(compact)) {
+    return compact.padStart(10, '0');
+  }
+  return cleaned;
 }
 
 /**
- * Checks whether a value is a 10-digit device asset barcode with leading zero(s)
- * (e.g. "0098184741", "'0098184741", or "00981 84741").
+ * Checks whether a value is a valid 10-digit device asset barcode
+ * (including 8-9 digit values whose leading zeros were stripped by spreadsheet number formatting).
  */
 export function isTenDigitDeviceBarcode(val?: string | number | null): boolean {
   if (val === undefined || val === null) return false;
   const normalized = normalizeBarcodeValue(val).replace(/[\s-]+/g, '');
-  return /^0\d{9}$/.test(normalized);
+  return /^\d{10}$/.test(normalized);
+}
+
+/**
+ * Checks whether a value represents a real assigned device barcode (and not a blank,
+ * placeholder like "No"/"N/A"/"0", or the student's own ID/username/PIN).
+ */
+export function isValidDeviceBarcode(
+  val?: string | number | null,
+  record?: Partial<RecordData>
+): boolean {
+  const normalized = normalizeBarcodeValue(val);
+  if (!normalized) return false;
+
+  const lower = normalized.toLowerCase();
+  if (NON_DEVICE_BARCODE_PLACEHOLDERS.has(lower)) return false;
+
+  if (record) {
+    const identityKeys = [
+      record.studentId,
+      record.lunchId,
+      record.userId,
+      record.username,
+      record.stateTestingId,
+      record.pin,
+      extractUsername(record.email),
+    ]
+      .map((k) => String(k || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    if (identityKeys.includes(lower)) {
+      return false;
+    }
+  }
+
+  const compact = normalized.replace(/[\s-]+/g, '');
+  if (/^\d+$/.test(compact)) {
+    // Reject short numeric values (< 6 digits, e.g. PINs, room numbers, row IDs)
+    return compact.length >= 6 && compact.length <= 14;
+  }
+
+  // Alphanumeric asset tag (e.g. "GFES-00123", "5CG123456"): require length >= 4 and at least one digit
+  return compact.length >= 4 && /\d/.test(compact);
 }
 
 /**
@@ -240,14 +315,14 @@ function getDeviceStudentMatchKeys(dev: Partial<RecordData>): string[] {
 }
 
 /**
- * Builds a fast lookup map (studentId / userId / username -> 10-digit device barcode)
+ * Builds a fast lookup map (studentId / userId / username -> device barcode)
  * from Devices & Inventory records.
  */
 export function buildDeviceBarcodeLookupMap(devices: RecordData[] = []): Map<string, string> {
   const deviceByKey = new Map<string, string>();
   for (const dev of devices) {
     const devBarcode = normalizeBarcodeValue(dev.assetTag || dev.barcode);
-    if (!isTenDigitDeviceBarcode(devBarcode)) continue;
+    if (!isValidDeviceBarcode(devBarcode)) continue;
     const keys = getDeviceStudentMatchKeys(dev);
     for (const k of keys) {
       if (k && k !== devBarcode.toLowerCase() && !deviceByKey.has(k)) {
@@ -259,9 +334,8 @@ export function buildDeviceBarcodeLookupMap(devices: RecordData[] = []): Map<str
 }
 
 /**
- * Looks up the 10-digit leading-zero device barcode associated with a student's
- * Student ID / Lunch ID / User ID / Username from either the student record itself
- * or the Devices & Inventory lookup map/array.
+ * Looks up the device barcode associated with a student's Student ID / Lunch ID / User ID / Username
+ * from either the student's `barcode` / `assetTag` field or the Devices & Inventory lookup map/array.
  */
 export function getStudentDeviceBarcode(
   record: Partial<RecordData>,
@@ -270,8 +344,8 @@ export function getStudentDeviceBarcode(
   const normBar = normalizeBarcodeValue(record.barcode);
   const normAsset = normalizeBarcodeValue(record.assetTag);
 
-  if (isTenDigitDeviceBarcode(normBar)) return normBar;
-  if (isTenDigitDeviceBarcode(normAsset)) return normAsset;
+  if (isValidDeviceBarcode(normBar, record)) return normBar;
+  if (isValidDeviceBarcode(normAsset, record)) return normAsset;
 
   if (devicesOrMap) {
     const lookupMap =
@@ -290,7 +364,7 @@ export function getStudentDeviceBarcode(
 
       for (const k of studentKeys) {
         const found = lookupMap.get(k);
-        if (found) return found;
+        if (found && isValidDeviceBarcode(found, record)) return found;
       }
     }
   }
@@ -300,45 +374,39 @@ export function getStudentDeviceBarcode(
 
 /**
  * Normalizes cached student records while preserving sheet fields:
- * - Normalizes 10-digit barcodes (strips leading apostrophes / spaces)
+ * - Normalizes barcodes (strips invisible characters/apostrophes and restores stripped leading zeros on 8-9 digit barcodes)
  * - Keeps sheet `barcode` if it holds studentId (so spreadsheet fidelity is preserved)
- * - Clears stale manualHasDevice=false when a valid 10-digit barcode is present
+ * - Clears stale manualHasDevice overrides so device presence reflects `barcode`
  */
 export function sanitizeStudentRosterRecord(record: RecordData): RecordData {
   const normBar = normalizeBarcodeValue(record.barcode);
   const deviceBarcode = getStudentDeviceBarcode(record);
-  const hasTenDigit = isTenDigitDeviceBarcode(deviceBarcode);
-  const clearStaleManualNo = hasTenDigit && record.manualHasDevice === false;
-  const effectiveManual = clearStaleManualNo ? undefined : record.manualHasDevice;
-  const expectedLaptop =
-    effectiveManual !== undefined
-      ? effectiveManual
-        ? 'Yes'
-        : 'No'
-      : hasTenDigit
-      ? 'Yes'
-      : String(record.hasLaptop || 'No');
+  const hasBarcode = isValidDeviceBarcode(deviceBarcode, record);
+  const hadManualOverride = record.manualHasDevice !== undefined;
+  const needsBarcodeNorm = normBar !== (record.barcode || '') && isValidDeviceBarcode(normBar, record);
+  const targetHasLaptop = hasBarcode ? 'Yes' : String(record.hasLaptop || 'No');
+  const needsAssetSync = hasBarcode && record.assetTag !== deviceBarcode;
+  const needsLaptopSync = record.hasLaptop !== targetHasLaptop;
 
-  const needsBarcodeNorm = normBar !== (record.barcode || '') && isTenDigitDeviceBarcode(normBar);
-
-  if (!needsBarcodeNorm && !clearStaleManualNo && record.hasLaptop === expectedLaptop) {
+  if (!needsBarcodeNorm && !hadManualOverride && !needsAssetSync && !needsLaptopSync) {
     return record;
   }
   const next: RecordData = {
     ...record,
     barcode: needsBarcodeNorm ? normBar : record.barcode,
-    hasLaptop: expectedLaptop,
+    assetTag: hasBarcode ? deviceBarcode : record.assetTag,
+    hasLaptop: targetHasLaptop,
   };
-  if (clearStaleManualNo) {
+  if (hadManualOverride) {
     delete next.manualHasDevice;
   }
   return next;
 }
 
 /**
- * Links 10-digit device barcodes from Devices & Inventory onto matching Student Roster records
+ * Links device barcodes from Devices & Inventory onto matching Student Roster records
  * (by Student ID / Lunch ID / User ID / SAMAccountName / Email) when a student doesn't already
- * have a 10-digit barcode.
+ * have a valid device barcode.
  */
 export function linkDeviceBarcodesToStudents(
   students: RecordData[],
@@ -356,7 +424,7 @@ export function linkDeviceBarcodesToStudents(
   let linkedCount = 0;
   const updated = students.map((stu) => {
     const existingBar = getStudentDeviceBarcode(stu);
-    if (isTenDigitDeviceBarcode(existingBar)) return stu;
+    if (isValidDeviceBarcode(existingBar, stu)) return stu;
 
     const matchedBarcode = getStudentDeviceBarcode(stu, deviceByKey);
     if (!matchedBarcode) return stu;
@@ -365,7 +433,7 @@ export function linkDeviceBarcodesToStudents(
     const next: RecordData = {
       ...stu,
       assetTag: matchedBarcode,
-      barcode: isTenDigitDeviceBarcode(stu.barcode) ? stu.barcode : matchedBarcode,
+      barcode: isValidDeviceBarcode(stu.barcode, stu) ? normalizeBarcodeValue(stu.barcode) : matchedBarcode,
       hasLaptop: 'Yes',
     };
     delete next.manualHasDevice;
@@ -377,18 +445,14 @@ export function linkDeviceBarcodesToStudents(
 
 /**
  * Determines whether a student currently has an assigned computer / device.
- * Rule: Determined by whether a 10-digit barcode with leading zero(s) is associated with
- * the student (under Barcode, Asset Tag, or linked via Student ID in Devices & Inventory),
- * unless manually overridden via the Roster Editor toggle.
+ * Strictly correlated to whether a valid device barcode is present under `barcode`
+ * (or `assetTag`, or looked up via `studentId` in Devices & Inventory).
  */
 export function studentHasDevice(
   record: Partial<RecordData>,
   devicesOrMap?: RecordData[] | Map<string, string>
 ): boolean {
-  if (record.manualHasDevice !== undefined) {
-    return record.manualHasDevice;
-  }
-  return isTenDigitDeviceBarcode(getStudentDeviceBarcode(record, devicesOrMap));
+  return Boolean(getStudentDeviceBarcode(record, devicesOrMap));
 }
 
 /**
@@ -581,7 +645,14 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
   const stateTestingId = gf('stateTestingId', 'State Testing ID', 'Testing ID');
   const password = gf('password', 'Password') || 'GFES#2026';
   const pin = gf('pin', 'PIN', 'Pin', 'iPad PIN', 'iPad Pin', 'Device PIN', 'Passcode', 'PIN Code');
-  const hasAssignedDeviceBarcode = isTenDigitDeviceBarcode(barcode);
+  const hasAssignedDeviceBarcode = isValidDeviceBarcode(barcode, {
+    studentId: studentIdRaw,
+    userId: userIdRaw,
+    username,
+    stateTestingId,
+    pin,
+    email: emailRaw,
+  });
 
   return {
     id: gf('id') || `rec_${Date.now()}_${index}`,

@@ -14,6 +14,7 @@ import {
   isExcludedGrade,
   studentHasDevice,
   isTenDigitDeviceBarcode,
+  isValidDeviceBarcode,
   normalizeBarcodeValue,
   getRowFieldCaseInsensitive,
   getStudentDeviceBarcode
@@ -239,8 +240,11 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             rowStr.includes('model') ||
             rowStr.includes('fullname') ||
             rowStr.includes('student id') ||
+            rowStr.includes('studentid') ||
             rowStr.includes('student name') ||
+            rowStr.includes('studentname') ||
             rowStr.includes('user id') ||
+            rowStr.includes('userid') ||
             rowStr.includes('barcode')
           ) {
             headerRowIdx = i;
@@ -255,13 +259,13 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           const item: Record<string, string> = {};
           headers.forEach((h, colIdx) => {
             if (h && row[colIdx] !== undefined) {
-              item[h] = (row[colIdx] || '').trim();
+              item[h] = String(row[colIdx] ?? '').trim();
             }
           });
 
           // If in Student mode or contains student headers (case-insensitive check)
           const hasStudentHeaders =
-            getRowFieldCaseInsensitive(item, 'Student Name', 'Student ID', 'State Testing ID', 'Room Name', 'User ID', 'Student Email 1', 'studentName', 'userId', 'Lunch ID').found;
+            getRowFieldCaseInsensitive(item, 'Student Name', 'Student ID', 'studentId', 'State Testing ID', 'Room Name', 'User ID', 'Student Email 1', 'studentName', 'userId', 'Lunch ID').found;
 
           if (!isDeviceMode && (hasStudentHeaders || !isStaffMode)) {
             const gf = (...keys: string[]) => getRowFieldCaseInsensitive(item, ...keys).value;
@@ -293,8 +297,18 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               'iPad Barcode',
               'Asset'
             );
+            const pin = gf('pin', 'PIN', 'Pin', 'iPad PIN', 'iPad Pin', 'Device PIN', 'Passcode', 'PIN Code');
+            const stateTestingId = gf('stateTestingId', 'State Testing ID', 'Testing ID');
             const rawBarcode = normalizeBarcodeValue(barcodeLookup.value);
-            const nonAssetBarcode = isTenDigitDeviceBarcode(rawBarcode) ? '' : rawBarcode;
+            const hasValidBarcode = isValidDeviceBarcode(rawBarcode, {
+              studentId,
+              userId: rawUserId,
+              username: rawUsername,
+              stateTestingId,
+              pin,
+              email: emailRaw,
+            });
+            const nonAssetBarcode = hasValidBarcode ? '' : rawBarcode;
             // If studentId and userId do not match, userId is treated as main username
             const username =
               (rawUserId && rawUserId !== studentId ? rawUserId : '') ||
@@ -315,7 +329,6 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             const grade = gf('Grade', 'grade') || '03';
             const rawStaff = gf('Staff Name', 'StaffName', 'Teacher', 'Teacher Name', 'Homeroom Teacher', 'Homeroom', 'staffName');
             const staff = extractTeacherLastName(rawStaff);
-            const stateTestingId = gf('State Testing ID', 'Testing ID', 'stateTestingId');
             const password = gf('Password', 'password') || 'GFES#2026';
 
             return {
@@ -335,12 +348,13 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               roomNumber: room,
               password,
               barcode: barcodeVal,
-              pin: gf('pin', 'PIN', 'Pin', 'iPad PIN', 'iPad Pin', 'Device PIN', 'Passcode', 'PIN Code'),
+              assetTag: hasValidBarcode ? barcodeVal : '',
+              pin,
               role: 'Student',
               title: 'Student',
               hasSleeve: gf('hasSleeve', 'Has Sleeve') || 'Yes',
               hasCharger: gf('hasCharger', 'Has Charger') || 'Yes',
-              hasLaptop: isTenDigitDeviceBarcode(barcodeVal) ? 'Yes' : (gf('hasLaptop', 'Has Laptop') || 'No'),
+              hasLaptop: hasValidBarcode ? 'Yes' : (gf('hasLaptop', 'Has Laptop') || 'No'),
               hasHeadphones: gf('hasHeadphones', 'Has Headphones') || 'No',
               attendingSummerPrograms: gf('attendingSummerPrograms', 'Attending Summer') || 'No',
               deviceCheckedOutForSummer: gf('deviceCheckedOutForSummer', 'Checked Out Summer') || 'No',
@@ -536,12 +550,27 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   // Inline row edit
   const handleStartEdit = (record: RecordData) => {
     setEditingId(record.id);
-    setEditFormData({ ...record });
+    if (!isStaffMode && !isDeviceMode) {
+      const resolvedDeviceBarcode = getStudentDeviceBarcode(record, deviceRecords);
+      setEditFormData({
+        ...record,
+        assetTag: resolvedDeviceBarcode,
+      });
+    } else {
+      setEditFormData({ ...record });
+    }
   };
 
   const handleSaveEdit = () => {
     if (!editFormData) return;
-    const updated = records.map(r => (r.id === editFormData.id ? editFormData : r));
+    const normalizedBarcode = normalizeBarcodeValue(editFormData.barcode);
+    const normalizedAsset = normalizeBarcodeValue(editFormData.assetTag);
+    const finalFormData: RecordData = {
+      ...editFormData,
+      barcode: normalizedBarcode || editFormData.barcode,
+      assetTag: normalizedAsset || editFormData.assetTag,
+    };
+    const updated = records.map(r => (r.id === finalFormData.id ? finalFormData : r));
     onUpdateRecords(updated);
     setEditingId(null);
     setEditFormData(null);
@@ -557,37 +586,6 @@ export const DataEditor: React.FC<DataEditorProps> = ({
     if (confirm('Are you sure you want to delete this record?')) {
       onUpdateRecords(records.filter(r => r.id !== id));
     }
-  };
-
-  // 1-click toggle whether a student has a computer / device assigned
-  const handleToggleStudentDevice = (id: string) => {
-    const updated = records.map((r) => {
-      if (r.id !== id) return r;
-      const nextHasDevice = !studentHasDevice(r, deviceRecords);
-      return {
-        ...r,
-        manualHasDevice: nextHasDevice,
-        hasLaptop: nextHasDevice ? 'Yes' : 'No',
-        updatedAt: new Date().toISOString().split('T')[0],
-      };
-    });
-    onUpdateRecords(updated);
-  };
-
-  // Bulk set device status for currently filtered student rows
-  const handleBulkSetFilteredDevice = (hasDevice: boolean) => {
-    const filteredSet = new Set(filteredRecords.map((r) => r.id));
-    if (filteredSet.size === 0) return;
-    const updated = records.map((r) => {
-      if (!filteredSet.has(r.id)) return r;
-      return {
-        ...r,
-        manualHasDevice: hasDevice,
-        hasLaptop: hasDevice ? 'Yes' : 'No',
-        updatedAt: new Date().toISOString().split('T')[0],
-      };
-    });
-    onUpdateRecords(updated);
   };
 
   // Add Record
@@ -733,7 +731,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               </span>
             ) : (
               <span className="bg-indigo-100 text-indigo-900 font-bold px-2.5 py-1 rounded-md border border-indigo-200">
-                Roster Sheet: <strong>id, studentName, studentId, grade, staffName, password, barcode, pin, roomNumber</strong> • Barcode Value = studentId
+                Roster Sheet: <strong>id, studentName, studentId, grade, staffName, password, barcode, pin, roomNumber</strong> • Student ID (Barcode) = studentId
               </span>
             )}
           </div>
@@ -937,34 +935,12 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           </button>
 
           {(filterGrade !== 'all' || filterStaff !== 'all' || searchTerm.trim() !== '') && (
-            <>
-              <button
-                onClick={handleSelectOnlyFiltered}
-                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-2xs cursor-pointer shadow-2xs"
-              >
-                <span>Select ONLY This {filterGrade !== 'all' ? `Grade ${filterGrade}` : 'Filter'} ({filteredRecords.length})</span>
-              </button>
-              {!isStaffMode && !isDeviceMode && filteredRecords.length > 0 && (
-                <div className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleBulkSetFilteredDevice(true)}
-                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg font-bold text-2xs cursor-pointer"
-                    title="Mark all filtered students as having a computer/device"
-                  >
-                    Mark Filtered: Has Device
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkSetFilteredDevice(false)}
-                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-lg font-bold text-2xs cursor-pointer"
-                    title="Mark all filtered students as No Device (then click individual students who have computers)"
-                  >
-                    No Device
-                  </button>
-                </div>
-              )}
-            </>
+            <button
+              onClick={handleSelectOnlyFiltered}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-2xs cursor-pointer shadow-2xs"
+            >
+              <span>Select ONLY This {filterGrade !== 'all' ? `Grade ${filterGrade}` : 'Filter'} ({filteredRecords.length})</span>
+            </button>
           )}
 
           {!isStaffMode && !isDeviceMode && onToggleExcludeNonPrintable && (
@@ -1104,11 +1080,11 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                     {showCredentials ? <EyeOff className="w-3 h-3 text-indigo-600" /> : <Eye className="w-3 h-3 text-slate-400" />}
                   </button>
                 </th>
-                <th className="p-3" title="Scannable Barcode Value on student cards & iPad labels (= studentId from spreadsheet)">
-                  Barcode Value
+                <th className="p-3" title="Student ID (Barcode) corresponds to ID / Lunch ID (studentId) on the spreadsheet">
+                  Student ID (Barcode)
                 </th>
                 <th className="p-3">Room</th>
-                <th className="p-3 text-center" title="10-digit leading-zero device barcode looked up by studentId / barcode">
+                <th className="p-3 text-center" title="10-digit leading-zero device barcode correlated to barcode / studentId">
                   Device Barcode
                 </th>
                 <th className="p-3 text-right">Actions</th>
@@ -1389,15 +1365,14 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                           <td className="p-2 text-center">
                             <input
                               type="text"
-                              value={getStudentDeviceBarcode(editFormData, deviceRecords)}
+                              value={editFormData.assetTag || ''}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setEditFormData({
                                   ...editFormData,
                                   barcode: val,
                                   assetTag: val,
-                                  manualHasDevice: isTenDigitDeviceBarcode(val) ? undefined : editFormData.manualHasDevice,
-                                  hasLaptop: isTenDigitDeviceBarcode(val) ? 'Yes' : 'No',
+                                  hasLaptop: isValidDeviceBarcode(val, editFormData) ? 'Yes' : 'No',
                                 });
                               }}
                               className="w-28 px-2 py-1 glass-input rounded text-xs font-mono text-center"
@@ -1568,8 +1543,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 const resolvedUser = resolveMainUsername(record);
                 const studentUsername = resolvedUser || '—';
                 const studentBarcode = getStudentDeviceBarcode(record, deviceRecords);
-                const hasDevice = studentHasDevice(record, deviceRecords);
-                const hasTenDigitBarcode = isTenDigitDeviceBarcode(studentBarcode);
+                const hasDevice = Boolean(studentBarcode);
 
                 return (
                   <tr
@@ -1648,7 +1622,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStartEdit(record)}
-                        title="Barcode Value = studentId on spreadsheet (used for student badge & iPad label barcode)"
+                        title="Student ID (Barcode) = studentId / Lunch ID on spreadsheet"
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs border font-mono cursor-pointer transition-colors bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300 font-bold"
                       >
                         <Barcode className="w-3 h-3 text-indigo-600" />
@@ -1661,27 +1635,21 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                     <td className="p-3 text-center">
                       <button
                         type="button"
-                        onClick={() => handleToggleStudentDevice(record.id)}
+                        onClick={() => handleStartEdit(record)}
                         title={
-                          record.manualHasDevice !== undefined
-                            ? 'Manually set in Roster Editor (click to toggle)'
-                            : hasTenDigitBarcode
-                            ? `10-digit device Barcode linked (${studentBarcode}) — click to override`
-                            : 'No 10-digit leading-zero Barcode found for this studentId — click to override or edit row'
+                          hasDevice
+                            ? `Device Barcode from barcode column / lookup (${studentBarcode}) — click to edit`
+                            : 'No device barcode found — click to enter device barcode'
                         }
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold font-mono border cursor-pointer transition-colors ${
                           hasDevice
                             ? 'bg-emerald-500/15 text-emerald-900 border-emerald-500/30 hover:bg-emerald-500/25'
-                            : 'bg-slate-200/80 text-slate-600 border-slate-300 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300'
+                            : 'bg-slate-200/80 text-slate-600 border-slate-300 hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-300'
                         }`}
                       >
                         <Laptop className="w-3 h-3 shrink-0" />
                         <span>
-                          {hasTenDigitBarcode
-                            ? studentBarcode
-                            : hasDevice
-                            ? 'Manual Device'
-                            : 'No Barcode'}
+                          {hasDevice ? studentBarcode : 'No Barcode'}
                         </span>
                       </button>
                     </td>

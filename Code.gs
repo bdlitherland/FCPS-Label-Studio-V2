@@ -61,7 +61,14 @@ function getRosterFromSheet() {
       });
       var sId = String(obj.studentId || obj.ID || obj['Student ID'] || obj['Lunch ID'] || '');
       var uId = String(obj.userId || obj['User ID'] || obj.UserID || obj.user_id || obj.username || obj.Username || '');
-      var rawBarcode = String(obj.barcode || obj.Barcode || obj['Barcode Value'] || obj['Device Barcode'] || obj['Asset Tag'] || obj.AssetTag || '').trim();
+      var rawBarcode = String(obj.barcode || obj.Barcode || obj['Barcode Value'] || obj['Device Barcode'] || obj['Asset Tag'] || obj.AssetTag || '').trim().replace(/^'+/, '');
+      var compactBar = rawBarcode.replace(/[\s-]+/g, '');
+      if (/^\d{8,9}$/.test(compactBar)) {
+        rawBarcode = ('0000000000' + compactBar).slice(-10);
+      } else if (/^\d{10}$/.test(compactBar)) {
+        rawBarcode = compactBar;
+      }
+      var hasValidBarcode = rawBarcode && rawBarcode !== sId && !/^(no|none|n\/a|na|null|false|0|-|—)$/i.test(rawBarcode) && (/^\d{6,14}$/.test(rawBarcode.replace(/[\s-]+/g, '')) || (rawBarcode.length >= 4 && /\d/.test(rawBarcode)));
       var mainUser = (uId && uId !== sId ? uId : '') || uId;
       return {
         id: obj.id || String(index + 1),
@@ -78,7 +85,7 @@ function getRosterFromSheet() {
         roomNumber: String(obj.roomNumber || obj.Room || obj['Room Number'] || ''),
         hasSleeve: String(obj.hasSleeve || 'Yes'),
         hasCharger: String(obj.hasCharger || 'Yes'),
-        hasLaptop: /^0\d{9}$/.test(rawBarcode.replace(/[\s-]+/g, '')) ? 'Yes' : String(obj.hasLaptop || 'No'),
+        hasLaptop: hasValidBarcode ? 'Yes' : String(obj.hasLaptop || 'No'),
         hasHeadphones: String(obj.hasHeadphones || 'No'),
         attendingSummerPrograms: String(obj.attendingSummerPrograms || 'No'),
         deviceCheckedOutForSummer: String(obj.deviceCheckedOutForSummer || 'No'),

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RecordData } from '../types';
 import Papa from 'papaparse';
-import { normalizeStudentRecord } from '../utils/studentDataHelpers';
+import { normalizeStudentRecord, normalizeBarcodeValue, getRowFieldCaseInsensitive } from '../utils/studentDataHelpers';
 import {
   HardDrive,
   X,
@@ -17,12 +17,14 @@ interface DriveImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportRecords: (records: RecordData[]) => void;
+  activeRoster?: 'students' | 'staff' | 'devices';
 }
 
 export const DriveImportModal: React.FC<DriveImportModalProps> = ({
   isOpen,
   onClose,
-  onImportRecords
+  onImportRecords,
+  activeRoster = 'students',
 }) => {
   const [pasteText, setPasteText] = useState('');
   const [activeTab, setActiveTab] = useState<'drive' | 'paste' | 'template'>('drive');
@@ -35,8 +37,13 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
       return;
     }
 
-    Papa.parse(pasteText.trim(), {
+    const trimmedPaste = pasteText.trim();
+    const firstLines = trimmedPaste.split(/\r?\n/).slice(0, 5);
+    const hasTabs = firstLines.some((line) => line.includes('\t'));
+
+    Papa.parse(trimmedPaste, {
       header: false,
+      delimiter: hasTabs ? '\t' : '',
       skipEmptyLines: true,
       complete: (results) => {
         const rawRows = (results.data as string[][]) || [];
@@ -78,9 +85,55 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
           })
           .filter((obj) => Object.values(obj).some((v) => v !== ''));
 
-        const newRecords: RecordData[] = parsedObjects.map((item, index) =>
-          normalizeStudentRecord(item, index)
-        );
+        const newRecords: RecordData[] = parsedObjects.map((item, index) => {
+          if (activeRoster === 'devices') {
+            const dgf = (...keys: string[]) => getRowFieldCaseInsensitive(item, ...keys).value;
+            const rawAsset = dgf('AssetTag', 'Asset Tag', 'Asset_Tag', 'assetTag', 'Barcode', 'Barcode Value', 'Device Barcode', 'Asset #', 'Asset Number', 'Asset ID', 'Tag', 'Tag Number', 'Asset');
+            const assetTag = normalizeBarcodeValue(rawAsset);
+            const rawBar = normalizeBarcodeValue(dgf('Barcode', 'Barcode Value', 'Device Barcode', 'AssetTag', 'Asset Tag'));
+            const serial = dgf('Serial', 'SerialNumber', 'Serial Number', 'serialNumber', 'SN', 'S/N');
+            const devStudentId = dgf('Student ID', 'StudentID', 'studentId', 'student_id', 'Lunch ID', 'LunchID', 'Patron ID', 'PatronID', 'Patron Barcode', 'Custodian ID', 'Assigned ID', 'ID');
+            const devUserId = dgf('User ID', 'UserID', 'userId', 'user_id');
+            const samAcc = dgf('SAMAccountName', 'SAM Account Name', 'samAccountName', 'User ID', 'UserID', 'userId', 'Username', 'username', 'Assigned To', 'Assigned User', 'Checked Out To', 'Login');
+            const make = dgf('Make', 'make');
+            const model = dgf('Model', 'model');
+            const devType = dgf('Type', 'Device Type', 'deviceType') || 'Laptop';
+            const barcodeVal = rawBar || assetTag || serial || samAcc || devStudentId;
+            const name =
+              dgf('FullName', 'Full Name', 'studentName', 'Student Name', 'Name') ||
+              (assetTag ? `FCPS Device Asset #${assetTag}` : serial ? `Device S/N: ${serial}` : 'Device');
+            return {
+              id: dgf('id') || `dev_${Date.now()}_${index}`,
+              studentName: name,
+              fullName: name,
+              staffName: dgf('staffName', 'Staff Name', 'Teacher') || name,
+              studentId: devStudentId,
+              lunchId: devStudentId,
+              userId: devUserId || samAcc || undefined,
+              username: samAcc || devUserId || undefined,
+              samAccountName: samAcc || devStudentId || serial,
+              email: dgf('Email', 'Student Email', 'Student Email 1', 'User Email', 'email'),
+              description: dgf('Description', 'role', 'Role', 'title', 'Title') || `${make} ${model}`.trim() || 'FCPS Device',
+              grade: 'Device',
+              password: '',
+              barcode: barcodeVal,
+              assetTag: assetTag || barcodeVal,
+              serialNumber: serial,
+              make,
+              model,
+              deviceType: devType,
+              site: dgf('Site', 'site') || 'Glen Forest ES',
+              roomNumber: dgf('Room', 'Room Number', 'Room Name', 'roomNumber') || 'Main Office',
+              ownedBy: dgf('OwnedBy', 'Owned By', 'Owner', 'Custodian', 'Patron', 'Patron Name') || 'Fairfax County Public Schools',
+              hasSleeve: dgf('hasSleeve', 'Has Sleeve') || 'No',
+              hasCharger: dgf('hasCharger', 'Has Charger') || 'Yes',
+              hasLaptop: 'Yes',
+              updatedAt: new Date().toISOString().split('T')[0],
+              updatedBy: 'Drive Paste Import',
+            };
+          }
+          return normalizeStudentRecord(item, index);
+        });
 
         if (newRecords.length > 0) {
           onImportRecords(newRecords);

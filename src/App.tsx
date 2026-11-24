@@ -527,6 +527,7 @@ export default function App() {
       {/* GOOGLE DRIVE IMPORT MODAL */}
       <DriveImportModal
         isOpen={isDriveModalOpen}
+        activeRoster={activeRoster}
         onClose={() => setIsDriveModalOpen(false)}
         onImportRecords={(imported) => {
           handleUpdateRecords(imported);
