@@ -48,7 +48,7 @@ function doGet(e) {
 function getRosterFromSheet() {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var data = sheet.getDataRange().getValues();
+    var data = sheet.getDataRange().getDisplayValues();
     if (data.length < 2) return [];
 
     var headers = data[0].map(function(h) { return String(h).trim(); });
@@ -61,8 +61,8 @@ function getRosterFromSheet() {
       });
       var sId = String(obj.studentId || obj.ID || obj['Student ID'] || obj['Lunch ID'] || '');
       var uId = String(obj.userId || obj['User ID'] || obj.UserID || obj.user_id || obj.username || obj.Username || '');
-      var rawBarcode = String(obj.barcode || obj.Barcode || '');
-      var mainUser = (uId && uId !== sId ? uId : '') || (rawBarcode && rawBarcode !== sId ? rawBarcode : '') || uId;
+      var rawBarcode = String(obj.barcode || obj.Barcode || obj['Barcode Value'] || obj['Device Barcode'] || obj['Asset Tag'] || obj.AssetTag || '').trim();
+      var mainUser = (uId && uId !== sId ? uId : '') || uId;
       return {
         id: obj.id || String(index + 1),
         studentName: obj.studentName || obj.Name || obj['Student Name'] || '',
@@ -74,11 +74,11 @@ function getRosterFromSheet() {
         staffName: obj.staffName || obj.Teacher || obj['Staff Name'] || '',
         password: String(obj.password || obj.Password || ''),
         pin: String(obj.pin || obj.PIN || obj.Pin || obj['iPad PIN'] || obj['iPad Pin'] || obj['Device PIN'] || obj.Passcode || ''),
-        barcode: String(rawBarcode || mainUser || sId),
+        barcode: rawBarcode,
         roomNumber: String(obj.roomNumber || obj.Room || obj['Room Number'] || ''),
         hasSleeve: String(obj.hasSleeve || 'Yes'),
         hasCharger: String(obj.hasCharger || 'Yes'),
-        hasLaptop: String(obj.hasLaptop || 'Yes'),
+        hasLaptop: /^0\d{9}$/.test(rawBarcode.replace(/[\s-]+/g, '')) ? 'Yes' : String(obj.hasLaptop || 'No'),
         hasHeadphones: String(obj.hasHeadphones || 'No'),
         attendingSummerPrograms: String(obj.attendingSummerPrograms || 'No'),
         deviceCheckedOutForSummer: String(obj.deviceCheckedOutForSummer || 'No'),

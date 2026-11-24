@@ -7,6 +7,7 @@ import { SiteProfileModal } from './components/SiteProfileModal';
 import { GoogleDeployModal } from './components/GoogleDeployModal';
 import { GlenForestLogo } from './components/GlenForestLogo';
 import { safePrint, applyPrintPageStyles } from './utils/printHelpers';
+import { sanitizeStudentRosterRecord, linkDeviceBarcodesToStudents } from './utils/studentDataHelpers';
 import {
   Layers,
   Printer,
@@ -32,8 +33,10 @@ export default function App() {
     if (saved) {
       try {
         const parsed: RecordData[] = JSON.parse(saved);
-        // Filter out legacy mock data seeds if any
-        const real = parsed.filter(r => !['1', '2', '3', '4', '5', '8', '9'].includes(r.id));
+        // Filter out legacy mock data seeds if any and sanitize legacy barcode fallback copies
+        const real = parsed
+          .filter(r => !['1', '2', '3', '4', '5', '8', '9'].includes(r.id))
+          .map(sanitizeStudentRosterRecord);
         return real;
       } catch (e) {
         console.error('Failed to parse saved student records', e);
@@ -163,7 +166,17 @@ export default function App() {
   const [isSiteProfileModalOpen, setIsSiteProfileModalOpen] = useState(false);
   const [isGoogleDeployModalOpen, setIsGoogleDeployModalOpen] = useState(false);
 
-  // Auto-switch roster tab when template changes
+  // Auto-link 10-digit device barcodes from Devices & Inventory onto matching students (if student has no barcode yet)
+  useEffect(() => {
+    if (studentRecords.length > 0 && deviceRecords.length > 0) {
+      const { updated, linkedCount } = linkDeviceBarcodesToStudents(studentRecords, deviceRecords);
+      if (linkedCount > 0) {
+        setStudentRecords(updated);
+      }
+    }
+  }, [studentRecords, deviceRecords]);
+
+  // Auto-switch roster tab when template changes and ensure students are selected for student/classroom templates
   useEffect(() => {
     if (
       printSettings.template === 'staff-dymo' ||
@@ -180,8 +193,15 @@ export default function App() {
       printSettings.template === 'classroom-assignments'
     ) {
       setActiveRoster('students');
+      if (studentRecords.length > 0) {
+        const studentIdSet = new Set(studentRecords.map(s => s.id));
+        const hasAnyStudentSelected = selectedIds.some(id => studentIdSet.has(id));
+        if (!hasAnyStudentSelected) {
+          setSelectedIds(studentRecords.map(s => s.id));
+        }
+      }
     }
-  }, [printSettings.template]);
+  }, [printSettings.template, studentRecords.length]);
 
   // Auto-detect Google Apps Script (GAS) runtime & load sheet data if available
   useEffect(() => {
@@ -189,8 +209,9 @@ export default function App() {
     if (gas && typeof gas.getRosterFromSheet === 'function') {
       gas.withSuccessHandler((sheetRecords: RecordData[]) => {
         if (sheetRecords && sheetRecords.length > 0) {
-          setStudentRecords(sheetRecords);
-          setSelectedIds(prev => Array.from(new Set([...prev, ...sheetRecords.map(r => r.id)])));
+          const sanitized = sheetRecords.map(sanitizeStudentRosterRecord);
+          setStudentRecords(sanitized);
+          setSelectedIds(prev => Array.from(new Set([...prev, ...sanitized.map(r => r.id)])));
         }
       }).getRosterFromSheet();
     }
@@ -235,7 +256,9 @@ export default function App() {
     } else if (activeRoster === 'staff') {
       setStaffRecords(newRecords);
     } else {
-      setStudentRecords(newRecords);
+      const sanitized = newRecords.map(sanitizeStudentRosterRecord);
+      const { updated } = linkDeviceBarcodesToStudents(sanitized, deviceRecords);
+      setStudentRecords(updated);
     }
   };
 
@@ -494,6 +517,7 @@ export default function App() {
           <div className="space-y-4">
             <PrintSheetModal
               selectedRecords={selectedRecords}
+              allStudentRecords={studentRecords}
               settings={printSettings}
               onUpdateSettings={handleUpdateSettings}
             />

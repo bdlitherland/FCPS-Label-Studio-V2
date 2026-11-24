@@ -38,6 +38,7 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
     Papa.parse(pasteText, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: (h: string) => h.replace(/^\uFEFF/, '').trim(),
       complete: (results) => {
         const parsed = results.data as any[];
         const newRecords: RecordData[] = parsed.map((item, index) =>
@@ -57,10 +58,10 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
     });
   };
 
-  const sampleHeadersCSV = `Student Name,Student ID,State Testing ID,Last Name,First Name,Grade,Staff Name,Room Name,User ID,Password,PIN
-"Marroquin Romero, Alexis I.","1859599","VA9827361","Marroquin Romero","Alexis","03","Marcot, April M","307","amarroquin","GFES#2026","1234"
-"Vasquez Lopez, Sofia M.","1928374","VA8817263","Vasquez Lopez","Sofia","02","Miller, Jennifer K","204","1928374","GFES#2026","5678"
-"Khatri, Aarav K.","1774920","VA7728194","Khatri","Aarav","04","Martinez, David L","412","akhatri","GFES#2026","9012"`;
+  const sampleHeadersCSV = `Student Name,Student ID,State Testing ID,Last Name,First Name,Grade,Staff Name,Room Name,User ID,Password,PIN,Barcode
+"Marroquin Romero, Alexis I.","1859599","VA9827361","Marroquin Romero","Alexis","03","Marcot, April M","307","amarroquin","GFES#2026","1234","0098184741"
+"Vasquez Lopez, Sofia M.","1928374","VA8817263","Vasquez Lopez","Sofia","02","Miller, Jennifer K","204","1928374","GFES#2026","5678",""
+"Khatri, Aarav K.","1774920","VA7728194","Khatri","Aarav","04","Martinez, David L","412","akhatri","GFES#2026","9012","0098185102"`;
 
   const copySampleHeaders = () => {
     navigator.clipboard.writeText(sampleHeadersCSV);
@@ -173,7 +174,7 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
               <textarea
                 rows={7}
                 placeholder={`id,studentName,studentId,userId,grade,staffName,password,barcode,pin,roomNumber,hasSleeve,hasCharger,hasLaptop,hasHeadphones,attendingSummerPrograms,deviceCheckedOutForSummer,updatedAt,updatedBy
-1,"Marroquin Romero, Alexis I.","1859599","amarroquin","03","April Marcot","GFES#Alexis2026","amarroquin","1234","307","Yes","Yes","Yes","No","No","No","2026-07-21","Admin"`}
+1,"Marroquin Romero, Alexis I.","1859599","amarroquin","03","April Marcot","GFES#Alexis2026","0098184741","1234","307","Yes","Yes","Yes","No","No","No","2026-07-21","Admin"`}
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 className="w-full p-3 glass-input rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"

@@ -11,6 +11,8 @@ import {
   getStudentFirstName,
   getStudentLastName,
   isTenDigitDeviceBarcode,
+  normalizeBarcodeValue,
+  getRowFieldCaseInsensitive,
 } from '../utils/studentDataHelpers';
 import {
   RefreshCw,
@@ -240,6 +242,34 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
         }
       }
 
+      // 4. Fallback match by exact Student Name when neither Student ID nor User ID was provided
+      if (!bestMatch && !inId && !inUser && (inc.studentName || (inc.firstName && inc.lastName))) {
+        const incFull = inc.studentName.trim().toLowerCase();
+        const incFirst = (inc.firstName || getStudentFirstName({ studentName: inc.studentName })).toLowerCase().trim();
+        const incLast = (inc.lastName || getStudentLastName({ studentName: inc.studentName })).toLowerCase().trim();
+        const nameCandidates = existing.filter((rec) => {
+          if (usedExistingIds.has(rec.id)) return false;
+          const recFull = String(rec.studentName || '').trim().toLowerCase();
+          const recFirst = getStudentFirstName(rec).toLowerCase().trim();
+          const recLast = getStudentLastName(rec).toLowerCase().trim();
+          if (incFull && recFull && incFull === recFull) return true;
+          return !!(incLast && recLast && incLast === recLast && incFirst && recFirst && incFirst === recFirst);
+        });
+        if (nameCandidates.length === 1) {
+          bestMatch = nameCandidates[0];
+          confidence = 'user-match';
+        } else if (nameCandidates.length > 1 && inc.staffName) {
+          const incTeacher = extractTeacherLastName(inc.staffName).toLowerCase();
+          const refined = nameCandidates.find(
+            (rec) => extractTeacherLastName(rec.staffName).toLowerCase() === incTeacher
+          );
+          if (refined) {
+            bestMatch = refined;
+            confidence = 'user-match';
+          }
+        }
+      }
+
       if (bestMatch) {
         usedExistingIds.add(bestMatch.id);
         matched.push({
@@ -266,12 +296,52 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
     }
 
     Papa.parse(text.trim(), {
-      header: true,
+      header: false,
       skipEmptyLines: true,
       complete: (results) => {
-        const rows = (results.data as Record<string, any>[]) || [];
+        const rawRows = (results.data as string[][]) || [];
+        if (rawRows.length < 2) {
+          setParseError('No data rows found. Make sure the header row and at least one student row are included.');
+          setParsedRows([]);
+          return;
+        }
+
+        // Auto-detect real header row (handles reports with title/date rows above the headers)
+        let headerRowIdx = 0;
+        for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+          const nonEmptyCount = rawRows[i].filter((c) => c && String(c).trim()).length;
+          if (nonEmptyCount < 2) continue;
+          const rowStr = rawRows[i].join(' ').toLowerCase();
+          if (
+            rowStr.includes('student id') ||
+            rowStr.includes('student name') ||
+            rowStr.includes('user id') ||
+            rowStr.includes('lunch id') ||
+            rowStr.includes('barcode') ||
+            rowStr.includes('assettag') ||
+            rowStr.includes('asset tag') ||
+            rowStr.includes('fullname') ||
+            rowStr.includes('last name')
+          ) {
+            headerRowIdx = i;
+            break;
+          }
+        }
+
+        const headers = rawRows[headerRowIdx].map((h) => String(h || '').replace(/^\uFEFF/, '').trim());
+        const dataRows = rawRows.slice(headerRowIdx + 1);
+        const rows: Record<string, string>[] = dataRows.map((row) => {
+          const obj: Record<string, string> = {};
+          headers.forEach((h, colIdx) => {
+            if (h && row[colIdx] !== undefined) {
+              obj[h] = String(row[colIdx] || '').trim();
+            }
+          });
+          return obj;
+        });
+
         if (rows.length === 0) {
-          setParseError('No data rows found. Make sure the header row is included.');
+          setParseError('No data rows found below the header row.');
           setParsedRows([]);
           return;
         }
@@ -279,30 +349,36 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
         const normalized: IncomingSyncRow[] = rows
           .map((item, idx) => {
             const getField = (...keys: string[]): string => {
-              for (const k of keys) {
-                if (item[k] !== undefined && item[k] !== null && String(item[k]).trim() !== '') {
-                  return String(item[k]).trim();
-                }
-              }
-              // Case-insensitive fallback
-              const lowerMap: Record<string, string> = {};
-              Object.keys(item).forEach((origKey) => {
-                lowerMap[origKey.trim().toLowerCase()] = item[origKey] != null ? String(item[origKey]).trim() : '';
-              });
-              for (const k of keys) {
-                const v = lowerMap[k.toLowerCase()];
-                if (v) return v;
-              }
-              return '';
+              return getRowFieldCaseInsensitive(item, ...keys).value;
             };
 
-            const studentId = getField('studentId', 'Student ID', 'Lunch ID', 'FCPS ID', 'id');
+            const studentId = getField('studentId', 'Student ID', 'StudentID', 'student_id', 'Lunch ID', 'LunchID', 'FCPS ID', 'Perm ID', 'SIS ID', 'id');
             const email = getField('email', 'Student Email 1', 'Student Email', 'Email');
-            const rawUserId = getField('userId', 'User ID', 'UserID', 'user_id', 'SAMAccountName');
+            const rawUserId = getField('userId', 'User ID', 'UserID', 'user_id', 'SAMAccountName', 'SAM Account Name', 'Login');
             const rawUsername = getField('username', 'Username') || extractUsername(email);
-            const hasBarcodeColumn =
-              item['barcode'] !== undefined || item['Barcode'] !== undefined;
-            const barcode = getField('barcode', 'Barcode');
+            const barcodeLookup = getRowFieldCaseInsensitive(
+              item,
+              'barcode',
+              'Barcode',
+              'Barcode Value',
+              'Device Barcode',
+              'Asset Tag',
+              'AssetTag',
+              'assetTag',
+              'Asset #',
+              'Asset Number',
+              'Asset ID',
+              'Bar Code',
+              'Tag',
+              'Tag Number',
+              'Device Tag',
+              'Computer Barcode',
+              'Laptop Barcode',
+              'iPad Barcode',
+              'Asset'
+            );
+            const hasBarcodeColumn = barcodeLookup.found;
+            const barcode = normalizeBarcodeValue(barcodeLookup.value);
             const nonAssetBarcode = isTenDigitDeviceBarcode(barcode) ? '' : barcode;
 
             // If Student ID != User ID, User ID is the login username (never treat a 10-digit device barcode as username)
@@ -443,6 +519,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
             next.userId = sisUserId;
             next.username = sisUserId;
           }
+        }
+        if (inc.hasBarcodeColumn) {
+          next.barcode = inc.barcode;
+          delete next.manualHasDevice;
+          next.hasLaptop = isTenDigitDeviceBarcode(inc.barcode) ? 'Yes' : 'No';
         }
         next.updatedAt = today;
         next.updatedBy = 'SIS Sync';
@@ -782,6 +863,7 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                               <th className="p-2.5">Password Update</th>
                               <th className="p-2.5">PIN Update</th>
                               <th className="p-2.5">User ID / Username</th>
+                              <th className="p-2.5">Barcode (Device)</th>
                             </>
                           )}
                         </tr>
@@ -905,6 +987,11 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                                             State ID: {item.incoming.stateTestingId}
                                           </div>
                                         )}
+                                        {item.incoming.hasBarcodeColumn && (
+                                          <div className="text-[10px] font-mono text-emerald-800 font-bold">
+                                            Barcode: {item.incoming.barcode || '—'}
+                                          </div>
+                                        )}
                                       </div>
                                     ) : (
                                       <span className="text-slate-400">No change</span>
@@ -944,6 +1031,19 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
                                       </span>
                                     ) : (
                                       <span className="text-slate-600">{curUser || '—'}</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 font-mono text-[11px]">
+                                    {item.incoming.hasBarcodeColumn ? (
+                                      <span className="inline-flex items-center gap-1">
+                                        <span className="text-slate-400">{item.existing.barcode || '—'}</span>
+                                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                                        <strong className={item.incoming.barcode ? 'text-emerald-900' : 'text-slate-500'}>
+                                          {item.incoming.barcode || '—'}
+                                        </strong>
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">No change</span>
                                     )}
                                   </td>
                                 </>

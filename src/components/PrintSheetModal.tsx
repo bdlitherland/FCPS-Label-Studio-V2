@@ -42,12 +42,14 @@ import {
 
 interface PrintSheetModalProps {
   selectedRecords: RecordData[];
+  allStudentRecords?: RecordData[];
   settings: PrintSettings;
   onUpdateSettings: (newSettings: Partial<PrintSettings>) => void;
 }
 
 export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
   selectedRecords,
+  allStudentRecords = [],
   settings,
   onUpdateSettings,
 }) => {
@@ -120,15 +122,30 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
   const isGradeExcludedForTemplate = (grade?: string) =>
     isClassroomAssignment ? isPreschoolOrHeadStartGrade(grade) : isExcludedGrade(grade);
 
-  const excludedGradeCount = useMemo(() => {
-    return selectedRecords.filter(r => isGradeExcludedForTemplate(r.grade)).length;
-  }, [selectedRecords, isClassroomAssignment]);
+  // Scope student templates to actual student records (never mix Devices or Staff rows into Classroom Cart sheets)
+  const effectiveSourceRecords = useMemo(() => {
+    if (!isStudentTemplate) return selectedRecords;
+    const isStudentRow = (r: RecordData) => {
+      const g = String(r.grade || '').trim().toLowerCase();
+      const role = String(r.role || '').trim().toLowerCase();
+      return g !== 'device' && g !== 'staff' && role !== 'teacher / staff';
+    };
+    const selectedStudents = selectedRecords.filter(isStudentRow);
+    if (isClassroomAssignment && selectedStudents.length === 0 && allStudentRecords.length > 0) {
+      return allStudentRecords;
+    }
+    return selectedStudents;
+  }, [isStudentTemplate, isClassroomAssignment, selectedRecords, allStudentRecords]);
 
-  // Extract unique valid grades present in the selected records
+  const excludedGradeCount = useMemo(() => {
+    return effectiveSourceRecords.filter(r => isGradeExcludedForTemplate(r.grade)).length;
+  }, [effectiveSourceRecords, isClassroomAssignment]);
+
+  // Extract unique valid grades present in the effective records
   const uniqueSelectedGrades = useMemo(() => {
     const validRecords = (supportsGradeExclusion && excludeNonPrintable)
-      ? selectedRecords.filter(r => !isGradeExcludedForTemplate(r.grade))
-      : selectedRecords;
+      ? effectiveSourceRecords.filter(r => !isGradeExcludedForTemplate(r.grade))
+      : effectiveSourceRecords;
     const grades = Array.from(new Set(validRecords.map(r => r.grade).filter(Boolean) as string[]));
     return grades.sort((a, b) => {
       const rankA = getGradeRank(a);
@@ -136,7 +153,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
       if (rankA !== rankB) return rankB - rankA; // Highest grade first
       return a.localeCompare(b);
     });
-  }, [selectedRecords, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
+  }, [effectiveSourceRecords, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
 
   // Reset grade filter if current selection doesn't contain the filtered grade
   useEffect(() => {
@@ -147,7 +164,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
 
   // Filter records by grade and optionally exclude non-printing grades
   const filteredSelectedRecords = useMemo(() => {
-    let base = selectedRecords;
+    let base = effectiveSourceRecords;
     if (supportsGradeExclusion && excludeNonPrintable) {
       base = base.filter(r => !isGradeExcludedForTemplate(r.grade));
     }
@@ -163,7 +180,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
         `grade ${rGrade}` === fGrade
       );
     });
-  }, [selectedRecords, printGradeFilter, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
+  }, [effectiveSourceRecords, printGradeFilter, supportsGradeExclusion, excludeNonPrintable, isClassroomAssignment]);
 
   // Apply sorting based on selected sortOrder
   let displayRecords = [...filteredSelectedRecords];
@@ -426,10 +443,10 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                 className="bg-transparent text-indigo-900 font-bold text-xs focus:outline-none cursor-pointer"
               >
                 <option value="all">
-                  All Grades ({excludeNonPrintable && supportsGradeExclusion ? selectedRecords.length - excludedGradeCount : selectedRecords.length} cards)
+                  All Grades ({excludeNonPrintable && supportsGradeExclusion ? effectiveSourceRecords.length - excludedGradeCount : effectiveSourceRecords.length} {isClassroomAssignment ? 'students' : 'cards'})
                 </option>
                 {uniqueSelectedGrades.map(g => {
-                  const count = selectedRecords.filter(r => {
+                  const count = effectiveSourceRecords.filter(r => {
                     const rGrade = (r.grade || '').toString().trim().toLowerCase();
                     const fGrade = g.toString().trim().toLowerCase();
                     return rGrade === fGrade || rGrade.replace(/^0+/, '') === fGrade.replace(/^0+/, '');

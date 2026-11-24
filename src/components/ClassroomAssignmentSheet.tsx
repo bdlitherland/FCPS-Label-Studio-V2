@@ -9,7 +9,7 @@ import {
   getStudentLastName,
   resolveMainUsername,
   studentHasDevice,
-  isTenDigitDeviceBarcode,
+  getStudentDeviceBarcode,
 } from '../utils/studentDataHelpers';
 
 export interface ClassroomAssignedRow {
@@ -331,10 +331,10 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
             No students in this classroom have a 10-digit device barcode assigned ({page.noDeviceCount} without barcode).
           </div>
         ) : (
-          <table className="w-full border-collapse text-[9.5px] leading-tight">
+          <table className="w-full table-fixed border-collapse text-[9.5px] leading-tight">
             <thead>
               <tr className="bg-blue-900 text-white text-left text-[8.5px] uppercase tracking-wider">
-                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.15in]">
+                <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.05in]">
                   Cart Slot
                 </th>
                 <th className="py-1.5 px-1.5 font-extrabold border border-blue-900">
@@ -355,7 +355,7 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                   </th>
                 )}
                 {showPassword && (
-                  <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[0.95in]">
+                  <th className="py-1.5 px-1.5 font-extrabold border border-blue-900 w-[1.0in]">
                     Password
                   </th>
                 )}
@@ -384,16 +384,8 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                 const lastName = getStudentLastName(student);
                 const firstName = getStudentFirstName(student);
 
-                // Supply the Barcode value from the sheet (preserving 10-digit leading zeros; ignore legacy username/ID fallback copies)
-                const rawBar = String(student.barcode || '').trim();
-                const normalizedAsset = isTenDigitDeviceBarcode(student.assetTag)
-                  ? String(student.assetTag).trim().replace(/[\s-]+/g, '')
-                  : String(student.assetTag || '').trim();
-                const rawDeviceBarcode = isTenDigitDeviceBarcode(rawBar)
-                  ? rawBar.replace(/[\s-]+/g, '')
-                  : rawBar && rawBar !== mainUsername && rawBar !== lunchId
-                  ? rawBar
-                  : normalizedAsset;
+                // Supply the Barcode value from the sheet (10-digit leading-zero device barcode)
+                const rawDeviceBarcode = getStudentDeviceBarcode(student);
 
                 return (
                   <tr
