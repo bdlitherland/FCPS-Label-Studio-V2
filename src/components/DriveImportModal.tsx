@@ -27,7 +27,7 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
   activeRoster = 'students',
 }) => {
   const [pasteText, setPasteText] = useState('');
-  const [activeTab, setActiveTab] = useState<'drive' | 'paste' | 'template'>('drive');
+  const [activeTab, setActiveTab] = useState<'drive' | 'paste' | 'template'>('paste');
 
   if (!isOpen) return null;
 
@@ -47,12 +47,32 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
       skipEmptyLines: true,
       complete: (results) => {
         const rawRows = (results.data as string[][]) || [];
-        if (rawRows.length < 2) {
-          alert('No data rows found in pasted text. Make sure headers and at least one row are included.');
+        if (rawRows.length === 0) {
+          alert('No rows found in pasted text.');
           return;
         }
 
-        let headerRowIdx = 0;
+        const DEFAULT_17_HEADERS = [
+          'id',
+          'studentName',
+          'studentId',
+          'grade',
+          'staffName',
+          'password',
+          'barcode',
+          'pin',
+          'roomNumber',
+          'hasSleeve',
+          'hasCharger',
+          'hasLaptop',
+          'hasHeadphones',
+          'attendingSummerPrograms',
+          'deviceCheckedOutForSummer',
+          'updatedAt',
+          'updatedBy',
+        ];
+
+        let headerRowIdx = -1;
         for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
           const nonEmpty = rawRows[i].filter((c) => c && String(c).trim()).length;
           if (nonEmpty < 2) continue;
@@ -64,15 +84,24 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
             rowStr.includes('student id') ||
             rowStr.includes('userid') ||
             rowStr.includes('user id') ||
-            rowStr.includes('barcode')
+            rowStr.includes('barcode') ||
+            rowStr.includes('assettag') ||
+            rowStr.includes('asset tag')
           ) {
             headerRowIdx = i;
             break;
           }
         }
 
-        const headers = rawRows[headerRowIdx].map((h) => String(h || '').replace(/^\uFEFF/, '').trim());
-        const dataRows = rawRows.slice(headerRowIdx + 1);
+        const headers =
+          headerRowIdx >= 0
+            ? rawRows[headerRowIdx].map((h) => String(h || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim())
+            : DEFAULT_17_HEADERS;
+        const dataRows = headerRowIdx >= 0 ? rawRows.slice(headerRowIdx + 1) : rawRows;
+        if (dataRows.length === 0) {
+          alert('No data rows found below the header row.');
+          return;
+        }
         const parsedObjects = dataRows
           .map((row) => {
             const obj: Record<string, string> = {};
@@ -258,13 +287,31 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
 
           {activeTab === 'paste' && (
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-800">
-                Paste copied rows from Google Sheets or CSV:
-              </label>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <label className="block text-xs font-bold text-slate-800">
+                  Copy rows directly from Google Sheets &amp; paste here (with or without headers):
+                </label>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-bold cursor-pointer shadow-2xs">
+                  <span>Load CSV / TSV File</span>
+                  <input
+                    type="file"
+                    accept=".csv,.tsv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setPasteText(String(ev.target?.result || ''));
+                      reader.readAsText(f);
+                    }}
+                  />
+                </label>
+              </div>
               <textarea
                 rows={7}
-                placeholder={`id,studentName,studentId,userId,grade,staffName,password,barcode,pin,roomNumber,hasSleeve,hasCharger,hasLaptop,hasHeadphones,attendingSummerPrograms,deviceCheckedOutForSummer,updatedAt,updatedBy
-1,"Marroquin Romero, Alexis I.","1859599","amarroquin","03","April Marcot","GFES#Alexis2026","0098184741","1234","307","Yes","Yes","Yes","No","No","No","2026-07-21","Admin"`}
+                placeholder={`id\tstudentName\tstudentId\tgrade\tstaffName\tpassword\tbarcode\tpin\troomNumber\thasSleeve\thasCharger\thasLaptop\thasHeadphones\tattendingSummerPrograms\tdeviceCheckedOutForSummer\tupdatedAt\tupdatedBy
+9ae4f3ac-...\tDoe, Jane\t1234567\t5\tDoe, Jane N.\t\t98467091\t\t213\tTRUE\tTRUE\tTRUE\tTRUE\tFALSE\tTRUE`}
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 className="w-full p-3 glass-input rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"

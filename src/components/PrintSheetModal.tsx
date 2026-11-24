@@ -1033,7 +1033,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                 height: '11.0in',
                 maxHeight: '11.0in',
                 overflow: 'hidden',
-                padding: '0.4in 0.5in',
+                padding: '0.4in 0.60in 0.4in 0.40in',
                 transform: `translate(${settings.offsetXMm}mm, ${settings.offsetYMm}mm)`,
                 boxSizing: 'border-box',
               }}
@@ -1085,10 +1085,10 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                     overflow: 'hidden',
                     padding:
                       settings.template === 'ipad-5160'
-                        ? '0.5in 0.1875in'
+                        ? '0.5in 0.275in 0.5in 0.10in'
                         : isDymoTemplate || isBrotherPTouch
                         ? '0'
-                        : '0.5in 0.75in',
+                        : '0.5in 0.85in 0.5in 0.65in',
                     transform: (!isDymoTemplate && !isBrotherPTouch) ? `translate(${settings.offsetXMm}mm, ${settings.offsetYMm}mm)` : undefined,
                     boxSizing: 'border-box'
                   }}
@@ -1304,7 +1304,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                     height: '11.0in',
                     maxHeight: '11.0in',
                     overflow: 'hidden',
-                    padding: '0.5in 0.75in',
+                    padding: '0.5in 0.85in 0.5in 0.65in',
                     transform: `translate(${settings.offsetXMm}mm, ${settings.offsetYMm}mm)`,
                     boxSizing: 'border-box'
                   }}

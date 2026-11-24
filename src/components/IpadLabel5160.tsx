@@ -32,7 +32,7 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
 
   return (
     <div
-      className="relative w-[2.625in] h-[1in] bg-white border border-gray-300 rounded-[2px] p-1 flex flex-col justify-between overflow-hidden text-gray-900 shadow-xs print:shadow-none print:border-none print:p-[0.04in]"
+      className="relative w-[2.625in] h-[1in] bg-white border border-gray-300 rounded-[2px] p-1 pr-2.5 flex flex-col justify-between overflow-hidden text-gray-900 shadow-xs print:shadow-none print:border-none print:pt-[0.04in] print:pb-[0.04in] print:pl-[0.04in] print:pr-[0.14in]"
       style={{ boxSizing: 'border-box' }}
     >
       {/* Top Header: School & Grade/Room */}
@@ -50,13 +50,13 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
         <p className="text-[8.5px] font-extrabold text-slate-950 leading-tight truncate" title={studentDisplayName}>
           {studentDisplayName}
         </p>
-        <div className="flex justify-between items-center text-[6.5px] text-slate-600 font-medium gap-1 leading-tight">
-          <span className="truncate">
+        <div className="flex justify-between items-center text-[6.5px] text-slate-600 font-medium gap-1 leading-tight pr-0.5">
+          <span className="truncate min-w-0">
             {teacherLastName ? (
               <>T: <strong className="text-slate-900">{teacherLastName}</strong></>
             ) : null}
           </span>
-          <span className="font-mono font-bold text-slate-700 truncate shrink-0" title={`User ID / Username: ${mainUsername}`}>
+          <span className="font-mono font-bold text-slate-700 truncate max-w-[1.5in]" title={`User ID / Username: ${mainUsername}`}>
             User: <strong className="text-blue-950">{mainUsername || '—'}</strong>
           </span>
         </div>
@@ -92,7 +92,7 @@ export const IpadLabel5160: React.FC<IpadLabel5160Props> = ({
           value={barcodeValue || '1234567'}
           height={20}
           width={2}
-          maxWidthPx={234}
+          maxWidthPx={218}
           displayValue={false}
         />
       </div>

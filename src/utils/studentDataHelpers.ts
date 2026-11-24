@@ -195,7 +195,9 @@ export function normalizeBarcodeValue(val?: string | number | null): string {
 
   if (!cleaned) return '';
 
-  const compact = cleaned.replace(/[\s-]+/g, '');
+  const compact = /^[\d,\s-]+$/.test(cleaned)
+    ? cleaned.replace(/[,\s-]+/g, '')
+    : cleaned.replace(/[\s-]+/g, '');
   if (/^\d{10}$/.test(compact)) {
     return compact;
   }
@@ -216,8 +218,8 @@ export function isTenDigitDeviceBarcode(val?: string | number | null): boolean {
 }
 
 /**
- * Checks whether a value represents a real assigned device barcode (and not a blank,
- * placeholder like "No"/"N/A"/"0", or the student's own ID/username/PIN).
+ * Simple check for whether a barcode value represents a real assigned device barcode
+ * (ignores blanks, negative placeholders like "No"/"N/A"/"0", or a duplicate of studentId/PIN).
  */
 export function isValidDeviceBarcode(
   val?: string | number | null,
@@ -230,31 +232,15 @@ export function isValidDeviceBarcode(
   if (NON_DEVICE_BARCODE_PLACEHOLDERS.has(lower)) return false;
 
   if (record) {
-    const identityKeys = [
-      record.studentId,
-      record.lunchId,
-      record.userId,
-      record.username,
-      record.stateTestingId,
-      record.pin,
-      extractUsername(record.email),
-    ]
+    const idVals = [record.studentId, record.lunchId, record.pin]
       .map((k) => String(k || '').trim().toLowerCase())
       .filter(Boolean);
-
-    if (identityKeys.includes(lower)) {
+    if (idVals.includes(lower)) {
       return false;
     }
   }
 
-  const compact = normalized.replace(/[\s-]+/g, '');
-  if (/^\d+$/.test(compact)) {
-    // Reject short numeric values (< 6 digits, e.g. PINs, room numbers, row IDs)
-    return compact.length >= 6 && compact.length <= 14;
-  }
-
-  // Alphanumeric asset tag (e.g. "GFES-00123", "5CG123456"): require length >= 4 and at least one digit
-  return compact.length >= 4 && /\d/.test(compact);
+  return true;
 }
 
 /**
@@ -266,7 +252,7 @@ export function getRowFieldCaseInsensitive(
 ): { found: boolean; value: string } {
   const normalizedMap = new Map<string, string>();
   Object.keys(item || {}).forEach((origKey) => {
-    const cleanKey = origKey.replace(/^\uFEFF/, '').trim().toLowerCase();
+    const cleanKey = origKey.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim().toLowerCase();
     const rawVal = item[origKey];
     if (!normalizedMap.has(cleanKey)) {
       normalizedMap.set(cleanKey, rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : '');
@@ -300,7 +286,6 @@ function getDeviceStudentMatchKeys(dev: Partial<RecordData>): string[] {
   addKey(dev.samAccountName);
   addKey(extractUsername(dev.email));
 
-  // Extract parenthesized or standalone student IDs from OwnedBy / Usage / Description if present
   const textFields = [dev.ownedBy, dev.usage, dev.description];
   for (const field of textFields) {
     if (!field) continue;
@@ -322,7 +307,7 @@ export function buildDeviceBarcodeLookupMap(devices: RecordData[] = []): Map<str
   const deviceByKey = new Map<string, string>();
   for (const dev of devices) {
     const devBarcode = normalizeBarcodeValue(dev.assetTag || dev.barcode);
-    if (!isValidDeviceBarcode(devBarcode)) continue;
+    if (!isValidDeviceBarcode(devBarcode, dev)) continue;
     const keys = getDeviceStudentMatchKeys(dev);
     for (const k of keys) {
       if (k && k !== devBarcode.toLowerCase() && !deviceByKey.has(k)) {
@@ -334,17 +319,19 @@ export function buildDeviceBarcodeLookupMap(devices: RecordData[] = []): Map<str
 }
 
 /**
- * Looks up the device barcode associated with a student's Student ID / Lunch ID / User ID / Username
- * from either the student's `barcode` / `assetTag` field or the Devices & Inventory lookup map/array.
+ * Simple device barcode lookup:
+ * 1. Direct `barcode` column on the student record (with 8-9 digit leading zeros restored to 10 digits)
+ * 2. Direct `assetTag` on the student record
+ * 3. Matching record in Devices & Inventory by `studentId` / `lunchId` / `userId` / `username`
  */
 export function getStudentDeviceBarcode(
   record: Partial<RecordData>,
   devicesOrMap?: RecordData[] | Map<string, string>
 ): string {
   const normBar = normalizeBarcodeValue(record.barcode);
-  const normAsset = normalizeBarcodeValue(record.assetTag);
-
   if (isValidDeviceBarcode(normBar, record)) return normBar;
+
+  const normAsset = normalizeBarcodeValue(record.assetTag);
   if (isValidDeviceBarcode(normAsset, record)) return normAsset;
 
   if (devicesOrMap) {

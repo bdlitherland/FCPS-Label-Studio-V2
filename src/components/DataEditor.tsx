@@ -217,17 +217,46 @@ export const DataEditor: React.FC<DataEditorProps> = ({
   // Supports report CSVs starting on Row 7 or standard CSVs
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    Papa.parse(file, {
-      header: false,
-      skipEmptyLines: true,
-      complete: (results) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = String(evt.target?.result || '');
+      if (!content.trim()) return;
+      const firstLines = content.trim().split(/\r?\n/).slice(0, 5);
+      const hasTabs = firstLines.some((line) => line.includes('\t'));
+
+      Papa.parse(content, {
+        header: false,
+        delimiter: hasTabs ? '\t' : '',
+        skipEmptyLines: true,
+        complete: (results) => {
         const rawRows = results.data as string[][];
         if (!rawRows || rawRows.length === 0) return;
 
+        const DEFAULT_17_HEADERS = [
+          'id',
+          'studentName',
+          'studentId',
+          'grade',
+          'staffName',
+          'password',
+          'barcode',
+          'pin',
+          'roomNumber',
+          'hasSleeve',
+          'hasCharger',
+          'hasLaptop',
+          'hasHeadphones',
+          'attendingSummerPrograms',
+          'deviceCheckedOutForSummer',
+          'updatedAt',
+          'updatedBy',
+        ];
+
         // Find header row index (e.g. searching for "AssetTag", "Serial", "Make", "Student Name", "FullName")
-        let headerRowIdx = 0;
+        let headerRowIdx = -1;
         for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
           const nonEmptyCount = rawRows[i].filter(c => c && c.trim()).length;
           if (nonEmptyCount < 2) continue;
@@ -252,8 +281,11 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           }
         }
 
-        const headers = rawRows[headerRowIdx].map(h => (h || '').replace(/^\uFEFF/, '').trim());
-        const dataRows = rawRows.slice(headerRowIdx + 1);
+        const headers =
+          headerRowIdx >= 0
+            ? rawRows[headerRowIdx].map(h => (h || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim())
+            : DEFAULT_17_HEADERS;
+        const dataRows = headerRowIdx >= 0 ? rawRows.slice(headerRowIdx + 1) : rawRows;
 
         const newRecords: RecordData[] = dataRows.map((row, index) => {
           const item: Record<string, string> = {};
@@ -490,10 +522,12 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           onSelectAll([...otherRosterSelected, ...newRecords.map(r => r.id)]);
         }
       },
-      error: (error) => {
+      error: (error: Error) => {
         alert(`Error parsing CSV file: ${error.message}`);
       }
-    });
+      });
+    };
+    reader.readAsText(file);
   };
 
   // Export CSV Handler
@@ -883,13 +917,13 @@ export const DataEditor: React.FC<DataEditorProps> = ({
             </button>
           )}
 
-          {/* Google Drive Import */}
+          {/* Paste Sheet / Google Drive */}
           <button
             onClick={onOpenDriveModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-900 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
           >
             <HardDrive className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Google Drive</span>
+            <span>Paste Sheet / Drive</span>
           </button>
 
           {/* Export CSV */}
@@ -1112,6 +1146,13 @@ export const DataEditor: React.FC<DataEditorProps> = ({
 
                     {records.length === 0 && (
                       <div className="flex items-center justify-center gap-2.5 mt-4 flex-wrap">
+                        <button
+                          onClick={onOpenDriveModal}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm hover:shadow-md transition-all"
+                        >
+                          <HardDrive className="w-3.5 h-3.5" />
+                          <span>Paste from Google Sheets</span>
+                        </button>
                         <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm hover:shadow-md transition-all">
                           <Upload className="w-3.5 h-3.5" />
                           <span>Import CSV / TSV File</span>
@@ -1122,13 +1163,56 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                             className="hidden"
                           />
                         </label>
-                        <button
-                          onClick={onOpenDriveModal}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm hover:shadow-md transition-all"
-                        >
-                          <HardDrive className="w-3.5 h-3.5" />
-                          <span>Google Drive Import</span>
-                        </button>
+                        {!isDeviceMode && !isStaffMode && (
+                          <button
+                            onClick={() => {
+                              const sampleRows = [
+                                normalizeStudentRecord(
+                                  {
+                                    id: '9ae4f3ac-c67f-47a0-8aaa-997e8b9b0444',
+                                    studentName: 'Doe, Jane',
+                                    studentId: '1234567',
+                                    grade: '5',
+                                    staffName: 'Doe, Jane N.',
+                                    password: '',
+                                    barcode: '98467091',
+                                    pin: '',
+                                    roomNumber: '213',
+                                    hasSleeve: 'TRUE',
+                                    hasCharger: 'TRUE',
+                                    hasLaptop: 'TRUE',
+                                    hasHeadphones: 'TRUE',
+                                  },
+                                  0
+                                ),
+                                normalizeStudentRecord(
+                                  {
+                                    id: '154bdb38-0948-4b17-9b38-f9c7a572f092',
+                                    studentName: 'Doe, John',
+                                    studentId: '123568',
+                                    grade: '5',
+                                    staffName: 'Doe, John E.',
+                                    password: '',
+                                    barcode: '98467350',
+                                    pin: '',
+                                    roomNumber: '213',
+                                    hasSleeve: 'TRUE',
+                                    hasCharger: 'TRUE',
+                                    hasLaptop: 'TRUE',
+                                    hasHeadphones: 'TRUE',
+                                  },
+                                  1
+                                ),
+                              ];
+                              onUpdateRecords(sampleRows);
+                              onSelectAll(sampleRows.map(r => r.id));
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-bold cursor-pointer shadow-2xs transition-all"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Load Sample Data</span>
+                          </button>
+                        )}
                         <button
                           onClick={handleAddRecord}
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer shadow-2xs transition-all"
