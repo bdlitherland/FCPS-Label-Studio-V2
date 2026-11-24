@@ -158,31 +158,25 @@ export function isExcludedGrade(gradeStr?: string): boolean {
 }
 
 /**
- * Determines whether a student currently has an assigned laptop / computer device.
- * Respects boolean or string values from CSV / System Sync (e.g. "No", "false", "0", "None").
+ * Checks whether a value is a 10-digit device asset barcode with leading zero(s)
+ * (e.g. "0098184741" or "00981 84741").
+ */
+export function isTenDigitDeviceBarcode(val?: string | number | null): boolean {
+  if (val === undefined || val === null) return false;
+  const normalized = String(val).trim().replace(/[\s-]+/g, '');
+  return /^0\d{9}$/.test(normalized);
+}
+
+/**
+ * Determines whether a student currently has an assigned computer / device.
+ * Rule: Determined by whether a 10-digit barcode with leading zero(s) is listed under Barcode
+ * (or Asset Tag), unless manually overridden via the Roster Editor toggle.
  */
 export function studentHasDevice(record: Partial<RecordData>): boolean {
-  const val = record.hasLaptop;
-  if (val === false) return false;
-  if (val === true) return true;
-  if (val === undefined || val === null) return true;
-  const cleaned = String(val).trim().toLowerCase();
-  if (!cleaned) return true;
-  if (
-    cleaned === 'no' ||
-    cleaned === 'n' ||
-    cleaned === 'false' ||
-    cleaned === '0' ||
-    cleaned === 'none' ||
-    cleaned === 'unassigned' ||
-    cleaned === 'na' ||
-    cleaned === 'n/a' ||
-    cleaned === 'no device' ||
-    cleaned === 'no laptop'
-  ) {
-    return false;
+  if (record.manualHasDevice !== undefined) {
+    return record.manualHasDevice;
   }
-  return true;
+  return isTenDigitDeviceBarcode(record.barcode) || isTenDigitDeviceBarcode(record.assetTag);
 }
 
 /**
@@ -342,8 +336,11 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     username = userIdRaw || explicitUsername || emailUsername || studentIdRaw;
   }
 
-  // Barcode defaults to main username
-  const barcode = String(item.barcode || (item as any)['Barcode'] || username || studentIdRaw).trim();
+  // Preserve explicit Barcode header value (even if blank), otherwise default to main username
+  const hasBarcodeColumn =
+    item.barcode !== undefined || (item as any)['Barcode'] !== undefined;
+  const rawBarcode = String(item.barcode ?? (item as any)['Barcode'] ?? '').trim();
+  const barcode = hasBarcodeColumn ? rawBarcode : String(username || studentIdRaw).trim();
 
   // Student name handling in "First Last" format without middle initials
   const rawStudentName = item.studentName || (item as any)['Student Name'] || (item as any)['FullName'] || (item as any)['Full Name'] || (item as any)['Name'] || '';
@@ -368,6 +365,7 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     (item as any)['PIN Code'] ??
     '';
   const pin = String(rawPin).trim();
+  const hasAssignedDeviceBarcode = isTenDigitDeviceBarcode(barcode);
 
   return {
     id: item.id || `rec_${Date.now()}_${index}`,
@@ -389,7 +387,7 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     role: item.role || 'Student',
     hasSleeve: item.hasSleeve || (item as any)['Has Sleeve'] || 'Yes',
     hasCharger: item.hasCharger || (item as any)['Has Charger'] || 'Yes',
-    hasLaptop: item.hasLaptop || (item as any)['Has Laptop'] || 'Yes',
+    hasLaptop: hasAssignedDeviceBarcode ? 'Yes' : String(item.hasLaptop || (item as any)['Has Laptop'] || 'No'),
     hasHeadphones: item.hasHeadphones || (item as any)['Has Headphones'] || 'No',
     attendingSummerPrograms: item.attendingSummerPrograms || (item as any)['Attending Summer'] || 'No',
     deviceCheckedOutForSummer: item.deviceCheckedOutForSummer || (item as any)['Checked Out Summer'] || 'No',

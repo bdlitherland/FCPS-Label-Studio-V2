@@ -23,6 +23,7 @@ export interface RecordData {
   hasSleeve?: boolean | string;
   hasCharger?: boolean | string;
   hasLaptop?: boolean | string;
+  manualHasDevice?: boolean;
   hasHeadphones?: boolean | string;
   attendingSummerPrograms?: boolean | string;
   deviceCheckedOutForSummer?: boolean | string;

@@ -12,7 +12,8 @@ import {
   normalizeStudentRecord,
   getGradeRank,
   isExcludedGrade,
-  studentHasDevice
+  studentHasDevice,
+  isTenDigitDeviceBarcode
 } from '../utils/studentDataHelpers';
 import { SyncRosterModal, SyncModalMode } from './SyncRosterModal';
 import {
@@ -283,16 +284,19 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               '';
             const rawUsername = item['Username'] || item.username || '';
             const rawBarcode = item['Barcode'] || item.barcode || '';
+            const hasBarcodeColumn =
+              item['Barcode'] !== undefined || item.barcode !== undefined;
+            const nonAssetBarcode = isTenDigitDeviceBarcode(rawBarcode) ? '' : rawBarcode;
             // If studentId and userId do not match, userId is treated as main username
             const username =
               (rawUserId && rawUserId !== studentId ? rawUserId : '') ||
               (rawUsername && rawUsername !== studentId ? rawUsername : '') ||
-              (rawBarcode && rawBarcode !== studentId ? rawBarcode : '') ||
+              (nonAssetBarcode && nonAssetBarcode !== studentId ? nonAssetBarcode : '') ||
               rawUserId ||
               rawUsername ||
               extractUsername(emailRaw, studentId);
             const userId = rawUserId || username;
-            const barcodeVal = rawBarcode || username || studentId;
+            const barcodeVal = hasBarcodeColumn ? rawBarcode : (rawBarcode || username || studentId);
 
             const rawName =
               item['Student Name'] ||
@@ -358,7 +362,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
               title: 'Student',
               hasSleeve: item.hasSleeve || item['Has Sleeve'] || 'Yes',
               hasCharger: item.hasCharger || item['Has Charger'] || 'Yes',
-              hasLaptop: item.hasLaptop || item['Has Laptop'] || 'Yes',
+              hasLaptop: isTenDigitDeviceBarcode(barcodeVal) ? 'Yes' : (item.hasLaptop || item['Has Laptop'] || 'No'),
               hasHeadphones: item.hasHeadphones || item['Has Headphones'] || 'No',
               attendingSummerPrograms: item.attendingSummerPrograms || 'No',
               deviceCheckedOutForSummer: item.deviceCheckedOutForSummer || 'No',
@@ -481,10 +485,10 @@ export const DataEditor: React.FC<DataEditorProps> = ({
           'Username': uName,
           'Password': r.password || '',
           'PIN': r.pin || '',
-          'Barcode': r.barcode || uName || r.studentId,
+          'Barcode': r.barcode || '',
           'Has Sleeve': r.hasSleeve || 'No',
           'Has Charger': r.hasCharger || 'No',
-          'Has Laptop': r.hasLaptop || 'No',
+          'Has Laptop': studentHasDevice(r) ? 'Yes' : 'No',
           'Has Headphones': r.hasHeadphones || 'No'
         };
       });
@@ -537,6 +541,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
       const nextHasDevice = !studentHasDevice(r);
       return {
         ...r,
+        manualHasDevice: nextHasDevice,
         hasLaptop: nextHasDevice ? 'Yes' : 'No',
         updatedAt: new Date().toISOString().split('T')[0],
       };
@@ -552,6 +557,7 @@ export const DataEditor: React.FC<DataEditorProps> = ({
       if (!filteredSet.has(r.id)) return r;
       return {
         ...r,
+        manualHasDevice: hasDevice,
         hasLaptop: hasDevice ? 'Yes' : 'No',
         updatedAt: new Date().toISOString().split('T')[0],
       };
@@ -1353,7 +1359,14 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                           <td className="p-2 text-center">
                             <select
                               value={studentHasDevice(editFormData) ? 'Yes' : 'No'}
-                              onChange={(e) => setEditFormData({ ...editFormData, hasLaptop: e.target.value })}
+                              onChange={(e) => {
+                                const hasDev = e.target.value === 'Yes';
+                                setEditFormData({
+                                  ...editFormData,
+                                  manualHasDevice: hasDev,
+                                  hasLaptop: e.target.value,
+                                });
+                              }}
                               className="px-2 py-1 glass-input rounded text-xs font-bold"
                             >
                               <option value="Yes">Has Device</option>
@@ -1518,7 +1531,9 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                 const studentLunchId = record.lunchId || record.studentId || '—';
                 const resolvedUser = resolveMainUsername(record);
                 const studentUsername = resolvedUser || '—';
-                const studentBarcode = record.barcode || resolvedUser || record.studentId || '—';
+                const studentBarcode = record.barcode || '—';
+                const hasDevice = studentHasDevice(record);
+                const hasTenDigitBarcode = isTenDigitDeviceBarcode(record.barcode) || isTenDigitDeviceBarcode(record.assetTag);
 
                 return (
                   <tr
@@ -1606,15 +1621,21 @@ export const DataEditor: React.FC<DataEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleToggleStudentDevice(record.id)}
-                        title="Click to toggle whether this student has a computer/device for Classroom Cart Assignments"
+                        title={
+                          record.manualHasDevice !== undefined
+                            ? 'Manually set in Roster Editor (click to toggle)'
+                            : hasTenDigitBarcode
+                            ? `Has Device: 10-digit leading-zero Barcode detected (${record.barcode}) — click to override`
+                            : 'No Device: No 10-digit leading-zero Barcode under Barcode — click to override'
+                        }
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
-                          studentHasDevice(record)
+                          hasDevice
                             ? 'bg-emerald-500/15 text-emerald-900 border-emerald-500/30 hover:bg-emerald-500/25'
                             : 'bg-slate-200/80 text-slate-600 border-slate-300 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300'
                         }`}
                       >
                         <Laptop className="w-3 h-3" />
-                        <span>{studentHasDevice(record) ? 'Has Device' : 'No Device'}</span>
+                        <span>{hasDevice ? 'Has Device' : 'No Device'}</span>
                       </button>
                     </td>
                     <td className="p-3 text-right">
