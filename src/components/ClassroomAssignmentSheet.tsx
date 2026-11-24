@@ -10,6 +10,7 @@ import {
   resolveMainUsername,
   studentHasDevice,
   getStudentDeviceBarcode,
+  buildDeviceBarcodeLookupMap,
 } from '../utils/studentDataHelpers';
 
 export interface ClassroomAssignedRow {
@@ -20,6 +21,7 @@ export interface ClassroomAssignedRow {
   isOverflow: boolean;
   slotLabel: string; // "1".."30", "Additional Charging 1..N", or "No Device"
   displayLastFirst: string;
+  deviceBarcode?: string;
 }
 
 export interface ClassroomAssignmentPage {
@@ -64,6 +66,7 @@ export function buildClassroomAssignmentPages(
     sortClassroomsBy?: 'grade-teacher' | 'teacher';
     rowsPerPage?: number;
     noDeviceMode?: ClassroomNoDeviceMode;
+    deviceRecords?: RecordData[];
   }
 ): ClassroomAssignmentPage[] {
   const maxCartSlots = Math.max(1, options?.maxCartSlots ?? 30);
@@ -71,6 +74,7 @@ export function buildClassroomAssignmentPages(
   const sortClassroomsBy = options?.sortClassroomsBy ?? 'grade-teacher';
   const rowsPerPage = options?.rowsPerPage ?? 31;
   const noDeviceMode: ClassroomNoDeviceMode = options?.noDeviceMode ?? 'separate-section';
+  const deviceLookupMap = buildDeviceBarcodeLookupMap(options?.deviceRecords);
 
   if (records.length === 0) return [];
 
@@ -130,8 +134,8 @@ export function buildClassroomAssignmentPages(
 
   for (const group of sortedGroups) {
     const sortedAll = [...group.students].sort(compareStudentsLastFirst);
-    const withDevice = sortedAll.filter((s) => studentHasDevice(s));
-    const withoutDevice = sortedAll.filter((s) => !studentHasDevice(s));
+    const withDevice = sortedAll.filter((s) => studentHasDevice(s, deviceLookupMap));
+    const withoutDevice = sortedAll.filter((s) => !studentHasDevice(s, deviceLookupMap));
 
     const makeDisplayName = (student: RecordData) => {
       const lastName = getStudentLastName(student);
@@ -146,7 +150,8 @@ export function buildClassroomAssignmentPages(
     if (noDeviceMode === 'inline') {
       let slotCounter = 0;
       for (const student of sortedAll) {
-        const hasDevice = studentHasDevice(student);
+        const hasDevice = studentHasDevice(student, deviceLookupMap);
+        const deviceBarcode = getStudentDeviceBarcode(student, deviceLookupMap);
         if (hasDevice) {
           slotCounter += 1;
           const isOverflow = slotCounter > maxCartSlots;
@@ -158,6 +163,7 @@ export function buildClassroomAssignmentPages(
             isOverflow,
             slotLabel: isOverflow ? `Additional Charging ${slotCounter - maxCartSlots}` : `${slotCounter}`,
             displayLastFirst: makeDisplayName(student),
+            deviceBarcode,
           });
         } else {
           rows.push({
@@ -167,6 +173,7 @@ export function buildClassroomAssignmentPages(
             isOverflow: false,
             slotLabel: '—',
             displayLastFirst: makeDisplayName(student),
+            deviceBarcode,
           });
         }
       }
@@ -183,6 +190,7 @@ export function buildClassroomAssignmentPages(
           isOverflow,
           slotLabel: isOverflow ? `Additional Charging ${orderNumber - maxCartSlots}` : `${orderNumber}`,
           displayLastFirst: makeDisplayName(student),
+          deviceBarcode: getStudentDeviceBarcode(student, deviceLookupMap),
         });
       });
 
@@ -202,6 +210,7 @@ export function buildClassroomAssignmentPages(
             isOverflow: false,
             slotLabel: '—',
             displayLastFirst: makeDisplayName(student),
+            deviceBarcode: getStudentDeviceBarcode(student, deviceLookupMap),
           });
         });
       }
@@ -384,8 +393,8 @@ export const ClassroomAssignmentSheet: React.FC<ClassroomAssignmentSheetProps> =
                 const lastName = getStudentLastName(student);
                 const firstName = getStudentFirstName(student);
 
-                // Supply the Barcode value from the sheet (10-digit leading-zero device barcode)
-                const rawDeviceBarcode = getStudentDeviceBarcode(student);
+                // Supply the 10-digit device barcode associated with studentId / barcode
+                const rawDeviceBarcode = row.deviceBarcode || getStudentDeviceBarcode(student);
 
                 return (
                   <tr

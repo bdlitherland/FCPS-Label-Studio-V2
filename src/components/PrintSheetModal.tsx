@@ -43,6 +43,7 @@ import {
 interface PrintSheetModalProps {
   selectedRecords: RecordData[];
   allStudentRecords?: RecordData[];
+  deviceRecords?: RecordData[];
   settings: PrintSettings;
   onUpdateSettings: (newSettings: Partial<PrintSettings>) => void;
 }
@@ -50,6 +51,7 @@ interface PrintSheetModalProps {
 export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
   selectedRecords,
   allStudentRecords = [],
+  deviceRecords = [],
   settings,
   onUpdateSettings,
 }) => {
@@ -292,16 +294,17 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
       sortClassroomsBy: sortOrder === 'teacher-student' ? 'teacher' : 'grade-teacher',
       rowsPerPage: 31,
       noDeviceMode,
+      deviceRecords,
     });
-  }, [isClassroomAssignment, classroomScopedRecords, maxCartSlots, excludeNonPrintable, sortOrder, noDeviceMode]);
+  }, [isClassroomAssignment, classroomScopedRecords, maxCartSlots, excludeNonPrintable, sortOrder, noDeviceMode, deviceRecords]);
 
   const classroomDeviceCounts = useMemo(() => {
-    const withDevice = classroomScopedRecords.filter((r) => studentHasDevice(r)).length;
+    const withDevice = classroomScopedRecords.filter((r) => studentHasDevice(r, deviceRecords)).length;
     return {
       withDevice,
       withoutDevice: classroomScopedRecords.length - withDevice,
     };
-  }, [classroomScopedRecords]);
+  }, [classroomScopedRecords, deviceRecords]);
 
   const uniqueClassroomCount = useMemo(() => {
     return new Set(classroomPages.map(p => p.classroomKey)).size;

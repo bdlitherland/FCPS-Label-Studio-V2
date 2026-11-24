@@ -35,13 +35,50 @@ export const DriveImportModal: React.FC<DriveImportModalProps> = ({
       return;
     }
 
-    Papa.parse(pasteText, {
-      header: true,
+    Papa.parse(pasteText.trim(), {
+      header: false,
       skipEmptyLines: true,
-      transformHeader: (h: string) => h.replace(/^\uFEFF/, '').trim(),
       complete: (results) => {
-        const parsed = results.data as any[];
-        const newRecords: RecordData[] = parsed.map((item, index) =>
+        const rawRows = (results.data as string[][]) || [];
+        if (rawRows.length < 2) {
+          alert('No data rows found in pasted text. Make sure headers and at least one row are included.');
+          return;
+        }
+
+        let headerRowIdx = 0;
+        for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+          const nonEmpty = rawRows[i].filter((c) => c && String(c).trim()).length;
+          if (nonEmpty < 2) continue;
+          const rowStr = rawRows[i].join(' ').toLowerCase();
+          if (
+            rowStr.includes('studentname') ||
+            rowStr.includes('student name') ||
+            rowStr.includes('studentid') ||
+            rowStr.includes('student id') ||
+            rowStr.includes('userid') ||
+            rowStr.includes('user id') ||
+            rowStr.includes('barcode')
+          ) {
+            headerRowIdx = i;
+            break;
+          }
+        }
+
+        const headers = rawRows[headerRowIdx].map((h) => String(h || '').replace(/^\uFEFF/, '').trim());
+        const dataRows = rawRows.slice(headerRowIdx + 1);
+        const parsedObjects = dataRows
+          .map((row) => {
+            const obj: Record<string, string> = {};
+            headers.forEach((h, idx) => {
+              if (h && row[idx] !== undefined) {
+                obj[h] = String(row[idx] || '').trim();
+              }
+            });
+            return obj;
+          })
+          .filter((obj) => Object.values(obj).some((v) => v !== ''));
+
+        const newRecords: RecordData[] = parsedObjects.map((item, index) =>
           normalizeStudentRecord(item, index)
         );
 

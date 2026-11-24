@@ -33,11 +33,8 @@ export default function App() {
     if (saved) {
       try {
         const parsed: RecordData[] = JSON.parse(saved);
-        // Filter out legacy mock data seeds if any and sanitize legacy barcode fallback copies
-        const real = parsed
-          .filter(r => !['1', '2', '3', '4', '5', '8', '9'].includes(r.id))
-          .map(sanitizeStudentRosterRecord);
-        return real;
+        // Sanitize records while preserving all imported rows (including rows with id 1, 2, 3...)
+        return parsed.map(sanitizeStudentRosterRecord);
       } catch (e) {
         console.error('Failed to parse saved student records', e);
       }
@@ -493,6 +490,7 @@ export default function App() {
           <div className="space-y-4">
             <DataEditor
               records={activeList}
+              deviceRecords={deviceRecords}
               activeRoster={activeRoster}
               onChangeRoster={setActiveRoster}
               studentCount={studentRecords.length}
@@ -518,6 +516,7 @@ export default function App() {
             <PrintSheetModal
               selectedRecords={selectedRecords}
               allStudentRecords={studentRecords}
+              deviceRecords={deviceRecords}
               settings={printSettings}
               onUpdateSettings={handleUpdateSettings}
             />

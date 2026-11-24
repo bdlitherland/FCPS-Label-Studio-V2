@@ -208,49 +208,106 @@ export function getRowFieldCaseInsensitive(
 }
 
 /**
- * Extracts the student's device/sheet Barcode value, ignoring legacy fallback copies
- * where username or studentId was mistakenly placed into barcode.
+ * Extracts all candidate identity keys from a device record (Student ID, Lunch ID, User ID,
+ * SAMAccountName, Email username, or parenthesized/explicit IDs in OwnedBy/Description).
  */
-export function getStudentDeviceBarcode(record: Partial<RecordData>): string {
-  const normBar = normalizeBarcodeValue(record.barcode);
-  const normAsset = normalizeBarcodeValue(record.assetTag);
-  if (isTenDigitDeviceBarcode(normBar)) return normBar;
+function getDeviceStudentMatchKeys(dev: Partial<RecordData>): string[] {
+  const keys = new Set<string>();
+  const addKey = (val?: string | number | null) => {
+    const cleaned = String(val || '').trim().toLowerCase();
+    if (cleaned) keys.add(cleaned);
+  };
 
-  const mainUser = resolveMainUsername(record).trim().toLowerCase();
-  const sId = String(record.studentId || '').trim().toLowerCase();
-  const lId = String(record.lunchId || '').trim().toLowerCase();
-  const uId = String(record.userId || '').trim().toLowerCase();
-  const uName = String(record.username || '').trim().toLowerCase();
-  const emailUser = extractUsername(record.email).trim().toLowerCase();
+  addKey(dev.studentId);
+  addKey(dev.lunchId);
+  addKey(dev.userId);
+  addKey(dev.username);
+  addKey(dev.samAccountName);
+  addKey(extractUsername(dev.email));
 
-  const barLower = normBar.toLowerCase();
-  const isLegacyIdentityCopy =
-    !normBar ||
-    barLower === mainUser ||
-    barLower === sId ||
-    barLower === lId ||
-    barLower === uId ||
-    barLower === uName ||
-    barLower === emailUser;
-
-  if (!isLegacyIdentityCopy) {
-    return normBar;
+  // Extract parenthesized or standalone student IDs from OwnedBy / Usage / Description if present
+  const textFields = [dev.ownedBy, dev.usage, dev.description];
+  for (const field of textFields) {
+    if (!field) continue;
+    const str = String(field);
+    const matches = str.match(/\b\d{6,8}\b/g);
+    if (matches) {
+      matches.forEach((m) => addKey(m));
+    }
   }
-  if (isTenDigitDeviceBarcode(normAsset)) {
-    return normAsset;
-  }
-  return normAsset || '';
+
+  return Array.from(keys);
 }
 
 /**
- * Cleans up legacy student records (e.g. previously stored in localStorage) so
- * Barcode strictly holds the sheet/device barcode value instead of login username/ID.
+ * Builds a fast lookup map (studentId / userId / username -> 10-digit device barcode)
+ * from Devices & Inventory records.
+ */
+export function buildDeviceBarcodeLookupMap(devices: RecordData[] = []): Map<string, string> {
+  const deviceByKey = new Map<string, string>();
+  for (const dev of devices) {
+    const devBarcode = normalizeBarcodeValue(dev.assetTag || dev.barcode);
+    if (!isTenDigitDeviceBarcode(devBarcode)) continue;
+    const keys = getDeviceStudentMatchKeys(dev);
+    for (const k of keys) {
+      if (k && k !== devBarcode.toLowerCase() && !deviceByKey.has(k)) {
+        deviceByKey.set(k, devBarcode);
+      }
+    }
+  }
+  return deviceByKey;
+}
+
+/**
+ * Looks up the 10-digit leading-zero device barcode associated with a student's
+ * Student ID / Lunch ID / User ID / Username from either the student record itself
+ * or the Devices & Inventory lookup map/array.
+ */
+export function getStudentDeviceBarcode(
+  record: Partial<RecordData>,
+  devicesOrMap?: RecordData[] | Map<string, string>
+): string {
+  const normBar = normalizeBarcodeValue(record.barcode);
+  const normAsset = normalizeBarcodeValue(record.assetTag);
+
+  if (isTenDigitDeviceBarcode(normBar)) return normBar;
+  if (isTenDigitDeviceBarcode(normAsset)) return normAsset;
+
+  if (devicesOrMap) {
+    const lookupMap =
+      devicesOrMap instanceof Map ? devicesOrMap : buildDeviceBarcodeLookupMap(devicesOrMap);
+    if (lookupMap.size > 0) {
+      const studentKeys = [
+        record.studentId,
+        record.lunchId,
+        resolveMainUsername(record),
+        record.userId,
+        record.username,
+        extractUsername(record.email),
+      ]
+        .map((k) => String(k || '').trim().toLowerCase())
+        .filter(Boolean);
+
+      for (const k of studentKeys) {
+        const found = lookupMap.get(k);
+        if (found) return found;
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Normalizes cached student records while preserving sheet fields:
+ * - Normalizes 10-digit barcodes (strips leading apostrophes / spaces)
+ * - Keeps sheet `barcode` if it holds studentId (so spreadsheet fidelity is preserved)
+ * - Clears stale manualHasDevice=false when a valid 10-digit barcode is present
  */
 export function sanitizeStudentRosterRecord(record: RecordData): RecordData {
-  const cleanBarcode = getStudentDeviceBarcode(record);
-  const hasTenDigit = isTenDigitDeviceBarcode(cleanBarcode);
-  const needsBarcodeUpdate = cleanBarcode !== (record.barcode || '');
-  // Clear stale manualHasDevice=false if a valid 10-digit barcode is present on the record
+  const normBar = normalizeBarcodeValue(record.barcode);
+  const deviceBarcode = getStudentDeviceBarcode(record);
+  const hasTenDigit = isTenDigitDeviceBarcode(deviceBarcode);
   const clearStaleManualNo = hasTenDigit && record.manualHasDevice === false;
   const effectiveManual = clearStaleManualNo ? undefined : record.manualHasDevice;
   const expectedLaptop =
@@ -260,14 +317,16 @@ export function sanitizeStudentRosterRecord(record: RecordData): RecordData {
         : 'No'
       : hasTenDigit
       ? 'Yes'
-      : 'No';
+      : String(record.hasLaptop || 'No');
 
-  if (!needsBarcodeUpdate && !clearStaleManualNo && record.hasLaptop === expectedLaptop) {
+  const needsBarcodeNorm = normBar !== (record.barcode || '') && isTenDigitDeviceBarcode(normBar);
+
+  if (!needsBarcodeNorm && !clearStaleManualNo && record.hasLaptop === expectedLaptop) {
     return record;
   }
   const next: RecordData = {
     ...record,
-    barcode: cleanBarcode,
+    barcode: needsBarcodeNorm ? normBar : record.barcode,
     hasLaptop: expectedLaptop,
   };
   if (clearStaleManualNo) {
@@ -277,8 +336,9 @@ export function sanitizeStudentRosterRecord(record: RecordData): RecordData {
 }
 
 /**
- * Links 10-digit device barcodes from Devices & Inventory records onto matching Student Roster records
- * (by SAMAccountName / User ID / Student ID / Email) when a student doesn't already have a 10-digit barcode.
+ * Links 10-digit device barcodes from Devices & Inventory onto matching Student Roster records
+ * (by Student ID / Lunch ID / User ID / SAMAccountName / Email) when a student doesn't already
+ * have a 10-digit barcode.
  */
 export function linkDeviceBarcodesToStudents(
   students: RecordData[],
@@ -288,28 +348,7 @@ export function linkDeviceBarcodesToStudents(
     return { updated: students, linkedCount: 0 };
   }
 
-  const deviceByKey = new Map<string, string>();
-  for (const dev of devices) {
-    const devBarcode = normalizeBarcodeValue(dev.assetTag || dev.barcode);
-    if (!isTenDigitDeviceBarcode(devBarcode)) continue;
-    const keys = [
-      dev.samAccountName,
-      dev.userId,
-      dev.username,
-      dev.studentId,
-      dev.lunchId,
-      extractUsername(dev.email),
-    ]
-      .map((k) => String(k || '').trim().toLowerCase())
-      .filter((k) => k && k !== devBarcode.toLowerCase());
-
-    for (const k of keys) {
-      if (!deviceByKey.has(k)) {
-        deviceByKey.set(k, devBarcode);
-      }
-    }
-  }
-
+  const deviceByKey = buildDeviceBarcodeLookupMap(devices);
   if (deviceByKey.size === 0) {
     return { updated: students, linkedCount: 0 };
   }
@@ -319,31 +358,14 @@ export function linkDeviceBarcodesToStudents(
     const existingBar = getStudentDeviceBarcode(stu);
     if (isTenDigitDeviceBarcode(existingBar)) return stu;
 
-    const studentKeys = [
-      resolveMainUsername(stu),
-      stu.userId,
-      stu.username,
-      stu.studentId,
-      stu.lunchId,
-      extractUsername(stu.email),
-    ]
-      .map((k) => String(k || '').trim().toLowerCase())
-      .filter(Boolean);
-
-    let matchedBarcode = '';
-    for (const k of studentKeys) {
-      const found = deviceByKey.get(k);
-      if (found) {
-        matchedBarcode = found;
-        break;
-      }
-    }
-
+    const matchedBarcode = getStudentDeviceBarcode(stu, deviceByKey);
     if (!matchedBarcode) return stu;
+
     linkedCount += 1;
     const next: RecordData = {
       ...stu,
-      barcode: matchedBarcode,
+      assetTag: matchedBarcode,
+      barcode: isTenDigitDeviceBarcode(stu.barcode) ? stu.barcode : matchedBarcode,
       hasLaptop: 'Yes',
     };
     delete next.manualHasDevice;
@@ -355,14 +377,18 @@ export function linkDeviceBarcodesToStudents(
 
 /**
  * Determines whether a student currently has an assigned computer / device.
- * Rule: Determined by whether a 10-digit barcode with leading zero(s) is listed under Barcode
- * (or Asset Tag), unless manually overridden via the Roster Editor toggle.
+ * Rule: Determined by whether a 10-digit barcode with leading zero(s) is associated with
+ * the student (under Barcode, Asset Tag, or linked via Student ID in Devices & Inventory),
+ * unless manually overridden via the Roster Editor toggle.
  */
-export function studentHasDevice(record: Partial<RecordData>): boolean {
+export function studentHasDevice(
+  record: Partial<RecordData>,
+  devicesOrMap?: RecordData[] | Map<string, string>
+): boolean {
   if (record.manualHasDevice !== undefined) {
     return record.manualHasDevice;
   }
-  return isTenDigitDeviceBarcode(record.barcode) || isTenDigitDeviceBarcode(record.assetTag);
+  return isTenDigitDeviceBarcode(getStudentDeviceBarcode(record, devicesOrMap));
 }
 
 /**
@@ -495,19 +521,15 @@ export function resolveMainUsername(record: Partial<RecordData>): string {
  * - Teacher Name = Just the last name (from "Last, First M" or "First Last")
  */
 export function normalizeStudentRecord(item: Partial<RecordData>, index: number = 0): RecordData {
-  // Check email, userId, and username
-  const emailRaw = String(item.email || (item as any)['Student Email 1'] || (item as any)['Student Email'] || (item as any)['Email'] || '').trim();
-  const studentIdRaw = String(item.studentId || (item as any)['Student ID'] || (item as any)['Lunch ID'] || (item as any)['FCPS ID'] || `${1850000 + index}`).trim();
-  const userIdRaw = String(
-    item.userId ||
-    (item as any)['User ID'] ||
-    (item as any)['userId'] ||
-    (item as any)['UserID'] ||
-    (item as any)['user_id'] ||
-    (item as any)['SAMAccountName'] ||
-    ''
-  ).trim();
-  const explicitUsername = String(item.username || (item as any)['Username'] || (item as any)['username'] || '').trim();
+  const row = item as Record<string, any>;
+  const gf = (...keys: string[]) => getRowFieldCaseInsensitive(row, ...keys).value;
+
+  const emailRaw = gf('email', 'Student Email 1', 'Student Email', 'Email');
+  const studentIdRaw =
+    gf('studentId', 'Student ID', 'StudentID', 'student_id', 'Lunch ID', 'LunchID', 'FCPS ID', 'Perm ID', 'SIS ID', 'ID') ||
+    `${1850000 + index}`;
+  const userIdRaw = gf('userId', 'User ID', 'UserID', 'user_id', 'SAMAccountName', 'SAM Account Name', 'samAccountName', 'Login');
+  const explicitUsername = gf('username', 'Username');
   const emailUsername = emailRaw ? extractUsername(emailRaw) : '';
 
   // If studentId and userId do not match, userId becomes the main username
@@ -524,7 +546,7 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
 
   // Preserve Barcode strictly from the sheet/record (case-insensitive header aliases supported)
   const barcodeLookup = getRowFieldCaseInsensitive(
-    item as Record<string, any>,
+    row,
     'barcode',
     'Barcode',
     'Barcode Value',
@@ -547,35 +569,25 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
   const barcode = normalizeBarcodeValue(barcodeLookup.value);
 
   // Student name handling in "First Last" format without middle initials
-  const rawStudentName = item.studentName || (item as any)['Student Name'] || (item as any)['FullName'] || (item as any)['Full Name'] || (item as any)['Name'] || '';
-  const lastName = removeMiddleInitials(item.lastName || (item as any)['Last Name'] || '');
-  const firstName = removeMiddleInitials(item.firstName || (item as any)['First Name'] || '');
+  const rawStudentName = gf('studentName', 'Student Name', 'FullName', 'Full Name', 'Name');
+  const lastName = removeMiddleInitials(gf('lastName', 'Last Name'));
+  const firstName = removeMiddleInitials(gf('firstName', 'First Name'));
   const studentName = formatStudentFullName(firstName, lastName, rawStudentName);
 
-  const grade = String(item.grade || (item as any)['Grade'] || '03').trim();
-  const rawStaffName = item.staffName || (item as any)['Staff Name'] || (item as any)['Teacher'] || (item as any)['Teacher Name'] || '';
+  const grade = gf('grade', 'Grade') || '03';
+  const rawStaffName = gf('staffName', 'Staff Name', 'Teacher', 'Teacher Name', 'Homeroom Teacher', 'Homeroom');
   const staffName = extractTeacherLastName(rawStaffName);
-  const roomNumber = String(item.roomNumber || (item as any)['Room Name'] || (item as any)['Room Number'] || (item as any)['Room'] || '').trim();
-  const stateTestingId = String(item.stateTestingId || (item as any)['State Testing ID'] || (item as any)['Testing ID'] || '').trim();
-  const password = String(item.password || (item as any)['Password'] || 'GFES#2026').trim();
-  const rawPin =
-    item.pin ??
-    (item as any)['PIN'] ??
-    (item as any)['Pin'] ??
-    (item as any)['iPad PIN'] ??
-    (item as any)['iPad Pin'] ??
-    (item as any)['Device PIN'] ??
-    (item as any)['Passcode'] ??
-    (item as any)['PIN Code'] ??
-    '';
-  const pin = String(rawPin).trim();
+  const roomNumber = gf('roomNumber', 'Room Name', 'Room Number', 'Room', 'Rm');
+  const stateTestingId = gf('stateTestingId', 'State Testing ID', 'Testing ID');
+  const password = gf('password', 'Password') || 'GFES#2026';
+  const pin = gf('pin', 'PIN', 'Pin', 'iPad PIN', 'iPad Pin', 'Device PIN', 'Passcode', 'PIN Code');
   const hasAssignedDeviceBarcode = isTenDigitDeviceBarcode(barcode);
 
   return {
-    id: item.id || `rec_${Date.now()}_${index}`,
+    id: gf('id') || `rec_${Date.now()}_${index}`,
     studentName,
     studentId: studentIdRaw,
-    lunchId: studentIdRaw,
+    lunchId: gf('lunchId', 'Lunch ID') || studentIdRaw,
     userId: userIdRaw || username,
     username,
     email: emailRaw || (username.includes('@') ? username : `${username}@fcpsschools.net`),
@@ -588,14 +600,14 @@ export function normalizeStudentRecord(item: Partial<RecordData>, index: number 
     password,
     barcode,
     pin,
-    role: item.role || 'Student',
-    hasSleeve: item.hasSleeve || (item as any)['Has Sleeve'] || 'Yes',
-    hasCharger: item.hasCharger || (item as any)['Has Charger'] || 'Yes',
-    hasLaptop: hasAssignedDeviceBarcode ? 'Yes' : String(item.hasLaptop || (item as any)['Has Laptop'] || 'No'),
-    hasHeadphones: item.hasHeadphones || (item as any)['Has Headphones'] || 'No',
-    attendingSummerPrograms: item.attendingSummerPrograms || (item as any)['Attending Summer'] || 'No',
-    deviceCheckedOutForSummer: item.deviceCheckedOutForSummer || (item as any)['Checked Out Summer'] || 'No',
-    updatedAt: item.updatedAt || new Date().toISOString().split('T')[0],
-    updatedBy: item.updatedBy || 'SIS Sync'
+    role: gf('role') || 'Student',
+    hasSleeve: gf('hasSleeve', 'Has Sleeve') || 'Yes',
+    hasCharger: gf('hasCharger', 'Has Charger') || 'Yes',
+    hasLaptop: hasAssignedDeviceBarcode ? 'Yes' : (gf('hasLaptop', 'Has Laptop') || 'No'),
+    hasHeadphones: gf('hasHeadphones', 'Has Headphones') || 'No',
+    attendingSummerPrograms: gf('attendingSummerPrograms', 'Attending Summer') || 'No',
+    deviceCheckedOutForSummer: gf('deviceCheckedOutForSummer', 'Checked Out Summer') || 'No',
+    updatedAt: gf('updatedAt') || new Date().toISOString().split('T')[0],
+    updatedBy: gf('updatedBy') || 'SIS Sync'
   };
 }

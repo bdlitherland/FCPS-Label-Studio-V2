@@ -522,8 +522,14 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
         }
         if (inc.hasBarcodeColumn) {
           next.barcode = inc.barcode;
-          delete next.manualHasDevice;
-          next.hasLaptop = isTenDigitDeviceBarcode(inc.barcode) ? 'Yes' : 'No';
+          if (isTenDigitDeviceBarcode(inc.barcode)) {
+            next.assetTag = inc.barcode;
+            delete next.manualHasDevice;
+            next.hasLaptop = 'Yes';
+          } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+            delete next.manualHasDevice;
+            next.hasLaptop = 'No';
+          }
         }
         next.updatedAt = today;
         next.updatedBy = 'SIS Sync';
@@ -554,8 +560,14 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           if (inc.hasCharger) next.hasCharger = inc.hasCharger;
           if (inc.hasBarcodeColumn) {
             next.barcode = inc.barcode;
-            delete next.manualHasDevice;
-            next.hasLaptop = isTenDigitDeviceBarcode(inc.barcode) ? 'Yes' : 'No';
+            if (isTenDigitDeviceBarcode(inc.barcode)) {
+              next.assetTag = inc.barcode;
+              delete next.manualHasDevice;
+              next.hasLaptop = 'Yes';
+            } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+              delete next.manualHasDevice;
+              next.hasLaptop = inc.hasLaptop || 'No';
+            }
           } else if (inc.hasLaptop) {
             next.hasLaptop = inc.hasLaptop;
           }
@@ -564,8 +576,14 @@ export const SyncRosterModal: React.FC<SyncRosterModalProps> = ({
           if (inc.deviceCheckedOutForSummer) next.deviceCheckedOutForSummer = inc.deviceCheckedOutForSummer;
         } else if (inc.hasBarcodeColumn) {
           next.barcode = inc.barcode;
-          delete next.manualHasDevice;
-          next.hasLaptop = isTenDigitDeviceBarcode(inc.barcode) ? 'Yes' : 'No';
+          if (isTenDigitDeviceBarcode(inc.barcode)) {
+            next.assetTag = inc.barcode;
+            delete next.manualHasDevice;
+            next.hasLaptop = 'Yes';
+          } else if (!isTenDigitDeviceBarcode(next.assetTag)) {
+            delete next.manualHasDevice;
+            next.hasLaptop = 'No';
+          }
         }
         next.updatedAt = today;
         next.updatedBy = 'System Sync';
