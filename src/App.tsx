@@ -186,6 +186,7 @@ export default function App() {
     } else if (
       printSettings.template === 'ipad-5160' ||
       printSettings.template === 'student-5874' ||
+      printSettings.template === 'student-60505' ||
       printSettings.template === 'student-5523' ||
       printSettings.template === 'classroom-assignments'
     ) {
@@ -423,6 +424,7 @@ export default function App() {
             >
               <option value="ipad-5160">iPad Sticky Labels — Avery 5160 (30 per sheet)</option>
               <option value="student-5874">Business Card Labels — Student Double-Sided (Avery 5871 / 5874)</option>
+              <option value="student-60505">Business Card Labels — Student 2" × 4" (Avery 60505 — 10 per sheet)</option>
               <option value="teacher-5874">Business Card Labels — Teacher / Staff (Avery 5871 / 5874)</option>
               <option value="student-5523">Name Badge Labels — Student Double-Sided (Avery 5523 / 5392)</option>
               <option value="teacher-5523">Name Badge Labels — Teacher / Staff (Avery 5523 / 5392)</option>
@@ -460,6 +462,7 @@ export default function App() {
 
             {(printSettings.template === 'ipad-5160' ||
               printSettings.template === 'student-5874' ||
+              printSettings.template === 'student-60505' ||
               printSettings.template === 'student-5523' ||
               printSettings.template === 'classroom-assignments') && (
               <label className="flex items-center gap-1.5 px-3 py-1 bg-white/60 backdrop-blur-xs rounded-xl border border-white/40 cursor-pointer select-none hover:bg-white/80 transition-colors">

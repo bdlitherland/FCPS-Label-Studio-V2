@@ -3,6 +3,7 @@ import { RecordData, LabelTemplateType, PrintSideOption, PrintSettings, Classroo
 import { StudentCardFront } from './StudentCardFront';
 import { StudentCardBack } from './StudentCardBack';
 import { StudentCardSingleSided } from './StudentCardSingleSided';
+import { StudentCard60505 } from './StudentCard60505';
 import { TeacherCard } from './TeacherCard';
 import { IpadLabel5160 } from './IpadLabel5160';
 import { ChargerDymoLabel, DymoOrientationType, DymoModelType } from './ChargerDymoLabel';
@@ -104,6 +105,7 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
 
   const isStudentTemplate =
     settings.template === 'student-5874' ||
+    settings.template === 'student-60505' ||
     settings.template === 'student-5523' ||
     settings.template === 'ipad-5160' ||
     isClassroomAssignment;
@@ -116,9 +118,10 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
   const supportsPasswordToggle =
     settings.template === 'ipad-5160' ||
     settings.template === 'student-5874' ||
+    settings.template === 'student-60505' ||
     settings.template === 'student-5523' ||
     isClassroomAssignment;
-  const supportsPinToggle = settings.template === 'ipad-5160' || isClassroomAssignment;
+  const supportsPinToggle = settings.template === 'ipad-5160' || settings.template === 'student-60505' || isClassroomAssignment;
 
   // On Classroom Cart Assignments, Kindergarten (grade 00 / 0) MUST stay printable; only PS / HS are excluded.
   const isGradeExcludedForTemplate = (grade?: string) =>
@@ -357,6 +360,9 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             </option>
             <option value="student-5874">
               Student Business Cards — Double Sided (Avery 5871 / 5874 — 10/sheet)
+            </option>
+            <option value="student-60505">
+              Student Business Cards — 2" × 4" (Avery 60505 — 10/sheet)
             </option>
             <option value="teacher-5874">
               Teacher / Staff Cards (Avery 5871 / 5874 — 10/sheet)
@@ -951,6 +957,9 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
             {settings.template === 'ipad-5160' && (
               <strong>Avery 5160 Sticky Labels:</strong>
             )}
+            {settings.template === 'student-60505' && (
+              <strong>Avery 60505 Student Business Cards (2" × 4", 10 per sheet):</strong>
+            )}
             {(settings.template === 'student-5874' || settings.template === 'student-5523') && (
               <strong>Avery {settings.template === 'student-5523' ? '5523 / 5392' : '5871 / 5874'} Double-Sided Student Cards:</strong>
             )}
@@ -1086,6 +1095,8 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                     padding:
                       settings.template === 'ipad-5160'
                         ? '0.5in 0.275in 0.5in 0.10in'
+                        : settings.template === 'student-60505'
+                        ? '0.5in 0.2125in 0.5in 0.10in'
                         : isDymoTemplate || isBrotherPTouch
                         ? '0'
                         : '0.5in 0.85in 0.5in 0.65in',
@@ -1141,6 +1152,37 @@ export const PrintSheetModal: React.FC<PrintSheetModalProps> = ({
                           key={`5160_${record.id}`}
                           data={record}
                           schoolName={settings.schoolName}
+                          hideExcludedGrade={excludeNonPrintable}
+                          showPassword={showPasswords}
+                          showPin={showPins}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* GRID FOR AVERY 60505 STUDENT (2 cols x 5 rows, exact 4.0" x 2.0" per card, 0.1875" col gap) */}
+                  {settings.template === 'student-60505' && (
+                    <div
+                      className="grid justify-items-center items-center"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 4.0in)',
+                        gridTemplateRows: 'repeat(5, 2.0in)',
+                        columnGap: '0.1875in',
+                        rowGap: '0in',
+                        width: '8.1875in',
+                        height: '10.0in',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {chunk.map((record) => (
+                        <StudentCard60505
+                          key={`std_60505_${record.id}`}
+                          data={record}
+                          schoolName={settings.schoolName}
+                          schoolAddress={settings.schoolAddress}
+                          schoolYear={settings.schoolYear}
+                          customLogoUrl={settings.customLogoUrl}
                           hideExcludedGrade={excludeNonPrintable}
                           showPassword={showPasswords}
                           showPin={showPins}

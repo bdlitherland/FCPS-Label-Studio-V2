@@ -47,6 +47,7 @@ export interface RecordData {
 export type LabelTemplateType =
   | 'ipad-5160'
   | 'student-5874'
+  | 'student-60505'
   | 'teacher-5874'
   | 'student-5523'
   | 'teacher-5523'
